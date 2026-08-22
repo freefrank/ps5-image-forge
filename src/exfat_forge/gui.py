@@ -28,6 +28,9 @@ class App:
         self.output_var = tk.StringVar()
         self.mode_var = tk.StringVar(value="exfat")
         self.verify_var = tk.BooleanVar(value=True)
+        self.compress_var = tk.BooleanVar(value=True)
+        self.level_var = tk.IntVar(value=9)
+        self.keep_exfat_var = tk.BooleanVar(value=False)
 
         self._queue: queue.Queue = queue.Queue()
         self._worker: threading.Thread | None = None
@@ -54,11 +57,28 @@ class App:
         opts = ttk.Frame(root)
         opts.pack(fill="x", **pad)
         ttk.Radiobutton(opts, text="exFAT", value="exfat",
-                        variable=self.mode_var).pack(side="left")
+                        variable=self.mode_var,
+                        command=self._sync_pfs_opts).pack(side="left")
         ttk.Radiobutton(opts, text="exFAT + PFS (.ffpfsc)", value="pfs",
-                        variable=self.mode_var).pack(side="left", padx=12)
+                        variable=self.mode_var,
+                        command=self._sync_pfs_opts).pack(side="left", padx=12)
         ttk.Checkbutton(opts, text="构建后校验",
                         variable=self.verify_var).pack(side="left", padx=12)
+
+        pfs_opts = ttk.Frame(root)
+        pfs_opts.pack(fill="x", **pad)
+        self.compress_cb = ttk.Checkbutton(
+            pfs_opts, text="压缩 (deflate)", variable=self.compress_var,
+            command=self._sync_pfs_opts)
+        self.compress_cb.pack(side="left")
+        ttk.Label(pfs_opts, text="等级").pack(side="left", padx=(12, 4))
+        self.level_spin = ttk.Spinbox(pfs_opts, from_=1, to=9, width=4,
+                                      textvariable=self.level_var)
+        self.level_spin.pack(side="left")
+        self.keep_cb = ttk.Checkbutton(
+            pfs_opts, text="保留中间 .exfat", variable=self.keep_exfat_var)
+        self.keep_cb.pack(side="left", padx=12)
+        self._sync_pfs_opts()
 
         bar = ttk.Frame(root)
         bar.pack(fill="x", **pad)
@@ -84,6 +104,13 @@ class App:
         root.after(100, self._drain_queue)
 
     # ── UI helpers ────────────────────────────────────────────────
+
+    def _sync_pfs_opts(self) -> None:
+        pfs = self.mode_var.get() == "pfs"
+        self.compress_cb.configure(state="normal" if pfs else "disabled")
+        self.keep_cb.configure(state="normal" if pfs else "disabled")
+        self.level_spin.configure(
+            state="normal" if pfs and self.compress_var.get() else "disabled")
 
     def _pick_source(self) -> None:
         path = filedialog.askdirectory(title="选择游戏 dump 目录")
@@ -120,9 +147,15 @@ class App:
         self.cancel_btn.configure(state="normal")
         self._cancel = core.CancelToken()
         self._t0 = time.monotonic()
+        opts = {
+            "mode": self.mode_var.get(),
+            "verify": self.verify_var.get(),
+            "compress": self.compress_var.get(),
+            "level": max(1, min(9, self.level_var.get())),
+            "keep_exfat": self.keep_exfat_var.get(),
+        }
         self._worker = threading.Thread(
-            target=self._run, args=(source, output, self.mode_var.get(),
-                                    self.verify_var.get(), self._cancel),
+            target=self._run, args=(source, output, opts, self._cancel),
             daemon=True)
         self._worker.start()
 
@@ -134,8 +167,8 @@ class App:
     def _post(self, kind: str, payload: object) -> None:
         self._queue.put((kind, payload))
 
-    def _run(self, source: Path, output: Path, mode: str,
-             verify: bool, cancel: core.CancelToken) -> None:
+    def _run(self, source: Path, output: Path, opts: dict,
+             cancel: core.CancelToken) -> None:
         progress: core.ProgressFn = lambda ev: self._post("progress", ev)
         try:
             info = core.scan_source(source, progress, cancel)
@@ -147,15 +180,25 @@ class App:
             image = core.build_exfat(source, output,
                                      progress=progress, cancel=cancel)
             self._post("log", f"镜像已写出: {image}")
-            if verify:
+            if opts["verify"]:
                 files, total = core.verify_image(image, source,
                                                  progress=progress,
                                                  cancel=cancel)
                 self._post("log", f"校验通过: {files:,} 文件, "
                                   f"{total / 2**30:.2f} GB")
-            if mode == "pfs":
-                pfs = core.pack_pfs(image, progress=progress)
-                self._post("log", f"PFS 已生成: {pfs}")
+            if opts["mode"] == "pfs":
+                pfs = core.pack_pfs(image,
+                                    compress=opts["compress"],
+                                    compression_level=opts["level"],
+                                    progress=progress)
+                ratio = pfs.stat().st_size / max(1, image.stat().st_size)
+                self._post("log",
+                           f"PFS 已生成: {pfs}  "
+                           f"({pfs.stat().st_size / 2**30:.2f} GB, "
+                           f"{ratio * 100:.0f}% of exFAT)")
+                if not opts["keep_exfat"]:
+                    image.unlink()
+                    self._post("log", f"已删除中间镜像 {image.name}")
             mins, secs = divmod(int(time.monotonic() - self._t0), 60)
             self._post("done", f"完成 ({mins}m {secs:02d}s)")
         except core.BuildCancelled:

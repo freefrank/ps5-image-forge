@@ -109,3 +109,21 @@ def test_output_never_clobbered_on_failure(dump: Path, tmp_path: Path) -> None:
     with pytest.raises(core.BuildCancelled):
         core.build_exfat(dump, out, cancel=token)
     assert image.stat().st_size == good_bytes
+
+
+def test_pack_pfs_compressed(dump: Path, tmp_path: Path) -> None:
+    """Compressed ffpfsc must be valid per mkpfs and smaller than plain."""
+    import subprocess
+    import sys
+
+    # Highly compressible payload so the ratio check is meaningful.
+    (dump / "assets" / "zeros.bin").write_bytes(b"\0" * 4_000_000)
+    image = core.build_exfat(dump, tmp_path / "img")
+    plain = core.pack_pfs(image, tmp_path / "plain.ffpfsc", compress=False)
+    packed = core.pack_pfs(image, tmp_path / "packed.ffpfsc",
+                           compress=True, compression_level=6)
+    assert packed.stat().st_size < plain.stat().st_size
+    check = subprocess.run(
+        [sys.executable, "-m", "mkpfs", "verify", str(packed)],
+        capture_output=True, text=True)
+    assert check.returncode == 0, check.stdout + check.stderr

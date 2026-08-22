@@ -24,14 +24,27 @@
 pip install -e .
 ```
 
+### 单文件 exe
+
+```bash
+pip install pyinstaller
+python -m PyInstaller --onefile --windowed --name exFAT-Forge --collect-submodules mkpfs entry.py
+```
+
+产出 `dist/exFAT-Forge.exe`（约 15 MB）：双击进 GUI；带参数即为 CLI；
+`--selftest` 在临时目录跑一遍 构建→校验→压缩打包 自检。
+中文 Windows 的 GBK 控制台已在入口处理（stdio 强制 UTF-8）。
+
 ## 用法
 
 ```bash
 # 构建 exFAT 镜像（默认输出到源目录旁，自动读 param.json 命名）
 exfat-forge build E:\PPSA21564-app0 -o D:\PS5
 
-# 一步到 PFS
+# 一步到 PFS（PFSC 块压缩默认开启，deflate 等级 9）
 exfat-forge build E:\PPSA21564-app0 -o D:\PS5 --pfs
+exfat-forge build E:\PPSA21564-app0 -o D:\PS5 --pfs --level 6 --threads 8
+exfat-forge build E:\PPSA21564-app0 -o D:\PS5 --pfs --no-compress
 
 # 校验既有镜像（结构 + 与源目录比对）
 exfat-forge verify D:\PS5\PPSA21564.exfat --source E:\PPSA21564-app0

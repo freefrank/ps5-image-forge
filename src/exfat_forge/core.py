@@ -307,20 +307,46 @@ def extract_image(image: Path, dest: Path, *,
 
 
 def pack_pfs(image: Path, output: Path | None = None, *,
+             compress: bool = True,
+             compression_level: int = 9,
+             threads: int | None = None,
              progress: ProgressFn | None = None) -> Path:
     """Convert an .exfat image to .ffpfsc via mkpfs's own CLI.
 
     Runs ``python -m mkpfs pack file`` as a subprocess so the (large, GPL)
-    PFS packer stays a black box behind its supported interface.
+    PFS packer stays a black box behind its supported interface.  PFSC
+    block compression (deflate, level 1-9) is on by default — that is what
+    the "c" in .ffpfsc stands for; ``compress=False`` writes uncompressed
+    blocks instead.  ``threads`` caps the compressor's worker processes
+    (default: all cores).
     """
     if output is None:
         output = image.with_suffix(".ffpfsc")
+    # In a PyInstaller onefile build, sys.executable is our own exe and
+    # ``-m mkpfs`` does not exist; the app entrypoint recognizes a
+    # ``--mkpfs`` first argument and forwards to mkpfs's CLI in-process.
+    if getattr(sys, "frozen", False):
+        cmd = [sys.executable, "--mkpfs"]
+    else:
+        cmd = [sys.executable, "-m", "mkpfs"]
+    cmd += ["pack", "file", str(image), str(output)]
+    if compress:
+        cmd += ["--compress", "--compression-level", str(compression_level)]
+    else:
+        cmd += ["--no-compress"]
+    if threads:
+        cmd += ["--cpu-count", str(threads)]
     if progress:
-        progress(ProgressEvent("pfs", 0, 0, f"packing {image.name}"))
+        progress(ProgressEvent(
+            "pfs", 0, 0,
+            f"packing {image.name}"
+            + (f" (compress L{compression_level})" if compress else "")))
+    creationflags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+    env = dict(os.environ, PYTHONIOENCODING="utf-8:replace")
     proc = subprocess.run(
-        [sys.executable, "-m", "mkpfs", "pack", "file",
-         str(image), str(output)],
-        capture_output=True, text=True, encoding="utf-8", errors="replace")
+        cmd, capture_output=True, text=True,
+        encoding="utf-8", errors="replace", creationflags=creationflags,
+        env=env)
     if proc.returncode != 0:
         raise RuntimeError(
             f"mkpfs pack failed (exit {proc.returncode}):\n"

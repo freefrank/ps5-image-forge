@@ -8,3 +8,4 @@ dist/
 *.exfat
 *.exfat.part
 *.ffpfsc
+*.spec

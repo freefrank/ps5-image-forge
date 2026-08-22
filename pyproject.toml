@@ -17,6 +17,7 @@ dependencies = [
 [project.scripts]
 exfat-forge = "exfat_forge.cli:main"
 exfat-forge-gui = "exfat_forge.gui:main"
+exfat-forge-app = "exfat_forge.app:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

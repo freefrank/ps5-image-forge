@@ -63,8 +63,12 @@ def cmd_build(args: argparse.Namespace) -> int:
         print(f"[verify] OK — {files:,} files, {_fmt_gb(total)}")
 
     if args.pfs:
-        pfs = core.pack_pfs(image, progress=progress)
-        print(f"[pfs] {pfs}")
+        pfs = core.pack_pfs(image, compress=args.compress,
+                            compression_level=args.level,
+                            threads=args.threads, progress=progress)
+        ratio = pfs.stat().st_size / max(1, image.stat().st_size)
+        print(f"[pfs] {pfs}  ({_fmt_gb(pfs.stat().st_size)}, "
+              f"{ratio * 100:.0f}% of exFAT)")
         if not args.keep_exfat:
             image.unlink()
             print(f"[pfs] removed intermediate {image.name}")
@@ -114,6 +118,13 @@ def main(argv: list[str] | None = None) -> int:
                    help="cluster size in bytes (default: auto)")
     b.add_argument("--pfs", action="store_true",
                    help="also convert the image to .ffpfsc")
+    b.add_argument("--no-compress", dest="compress", action="store_false",
+                   help="with --pfs, write uncompressed blocks "
+                        "(compression is on by default)")
+    b.add_argument("--level", type=int, default=9, choices=range(1, 10),
+                   metavar="1-9", help="compression level (default 9)")
+    b.add_argument("--threads", type=int,
+                   help="compression worker processes (default: all cores)")
     b.add_argument("--keep-exfat", action="store_true",
                    help="with --pfs, keep the intermediate .exfat")
     b.add_argument("--no-verify", action="store_true",
