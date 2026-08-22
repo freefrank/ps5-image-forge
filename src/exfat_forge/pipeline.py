@@ -77,12 +77,8 @@ def source_kind(path: Path) -> str:
 
 
 def default_name(source: Path, fmt: str) -> str:
-    """``<titleId><ext>`` when param.json names one, else the source name."""
-    if source.is_dir():
-        title_id, _, _ = core.read_param_json(source)
-        stem = title_id or source.name
-    else:
-        stem = source.stem
+    """Use ``TITLE_ID_TITLE_VERSION`` metadata when it is available."""
+    stem = core.default_output_stem(source)
     return stem + EXT_BY_FORMAT[fmt]
 
 

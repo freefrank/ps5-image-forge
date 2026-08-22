@@ -87,14 +87,9 @@ class CancelToken:
             raise BuildCancelled()
 
 
-def read_param_json(source: Path) -> tuple[str | None, str | None, str | None]:
-    """Return (title_id, title, version) from sce_sys/param.json, or Nones."""
-    param = source / "sce_sys" / "param.json"
-    if not param.is_file():
-        return None, None, None
-    try:
-        data = json.loads(param.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
+def _param_metadata(data: object) -> tuple[str | None, str | None,
+                                            str | None]:
+    if not isinstance(data, dict):
         return None, None, None
     loc = data.get("localizedParameters") or {}
     default_lang = loc.get("defaultLanguage")
@@ -102,6 +97,38 @@ def read_param_json(source: Path) -> tuple[str | None, str | None, str | None]:
     if isinstance(default_lang, str):
         title = (loc.get(default_lang) or {}).get("titleName")
     return data.get("titleId"), title, data.get("contentVersion")
+
+
+def read_param_json(source: Path) -> tuple[str | None, str | None, str | None]:
+    """Return (title_id, title, version) from sce_sys/param.json, or Nones."""
+    param = source / "sce_sys" / "param.json"
+    if not param.is_file():
+        return None, None, None
+    try:
+        return _param_metadata(json.loads(param.read_text(encoding="utf-8")))
+    except (OSError, ValueError):
+        return None, None, None
+
+
+def read_image_param_json(
+        image: Path) -> tuple[str | None, str | None, str | None]:
+    """Read game metadata from an exFAT image without extracting it."""
+    if image.suffix.lower() != ".exfat" or not image.is_file():
+        return None, None, None
+    try:
+        with image.open("rb") as fh:
+            reader = ExfatReader(fh)
+            for entry in reader.iter_files():
+                rel = entry.rel_path.replace("\\", "/").lstrip("/").lower()
+                if not entry.is_dir and rel == "sce_sys/param.json":
+                    if entry.length > 2 * 2**20:
+                        return None, None, None
+                    raw = _read_entry_range(reader, entry, 0, entry.length)
+                    return _param_metadata(
+                        json.loads(raw.decode("utf-8-sig")))
+    except (OSError, UnicodeError, ValueError):
+        pass
+    return None, None, None
 
 
 def scan_source(source: Path, progress: ProgressFn | None = None,
@@ -135,10 +162,40 @@ def scan_source(source: Path, progress: ProgressFn | None = None,
     return result
 
 
+_INVALID_FILENAME_CHARS = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
+
+
+def _filename_part(value: object, limit: int) -> str:
+    """Make one readable, Windows-safe output-name component."""
+    text = _INVALID_FILENAME_CHARS.sub("_", str(value or ""))
+    text = re.sub(r"[\s_]+", "_", text).strip(" ._")
+    return text[:limit].rstrip(" ._")
+
+
+def default_output_stem(source: Path) -> str:
+    """Return ``TITLE_ID_TITLE_VERSION`` using embedded game metadata.
+
+    Directories use sce_sys/param.json; exFAT images are read in place. Missing
+    metadata components are omitted and the source name remains the fallback.
+    Component limits keep the resulting filename comfortably below Windows'
+    255-character filename limit while preserving Unicode titles.
+    """
+    metadata = read_param_json(source) if source.is_dir() \
+        else read_image_param_json(source)
+    title_id, title, version = metadata
+    parts = [
+        _filename_part(title_id, 32),
+        _filename_part(title, 120),
+        _filename_part(version, 40),
+    ]
+    stem = "_".join(part for part in parts if part)
+    fallback = source.name if source.is_dir() else source.stem
+    return stem or _filename_part(fallback, 180) or "game"
+
+
 def default_output_name(source: Path) -> str:
-    """``<titleId>.exfat`` when param.json names one, else the folder name."""
-    title_id, _, _ = read_param_json(source)
-    return f"{title_id or source.name}.exfat"
+    """Return the metadata-derived default exFAT filename."""
+    return default_output_stem(source) + ".exfat"
 
 
 #: exFAT allocation unit used when the caller does not pick one. mkpfs would
@@ -335,6 +392,18 @@ def pack_pfs(image: Path, output: Path | None = None, *,
     """
     if output is None:
         output = image.with_suffix(".ffpfsc")
+    output.parent.mkdir(parents=True, exist_ok=True)
+    # MkPFS prompts on stdin when the target exists. GUI builds have no
+    # interactive stdin, so that prompt ends in EOFError. Build beside the
+    # requested target and atomically replace it only after a successful pack;
+    # this also preserves a good existing image if packing fails.
+    # Keep .ffpfsc as the final suffix: MkPFS appends/replaces unrecognized
+    # suffixes, so ``name.ffpfsc.part`` would unexpectedly become
+    # ``name.ffpfsc.ffpfsc``.
+    partial = output.with_name(output.stem + ".part" + output.suffix)
+    partial.unlink(missing_ok=True)
+    partial_tmp = Path(str(partial) + ".tmp")
+    partial_tmp.unlink(missing_ok=True)
     # In a PyInstaller onefile build, sys.executable is our own exe and
     # ``-m mkpfs`` does not exist; the app entrypoint recognizes a
     # ``--mkpfs`` first argument and forwards to mkpfs's CLI in-process.
@@ -342,7 +411,7 @@ def pack_pfs(image: Path, output: Path | None = None, *,
         cmd = [sys.executable, "--mkpfs"]
     else:
         cmd = [sys.executable, "-m", "mkpfs"]
-    cmd += ["pack", "file", str(image), str(output)]
+    cmd += ["pack", "file", str(image), str(partial)]
     if compress:
         cmd += ["--compress", "--compression-level", str(compression_level)]
     else:
@@ -358,13 +427,6 @@ def pack_pfs(image: Path, output: Path | None = None, *,
             + (f" (compress L{compression_level})" if compress else "")))
     creationflags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
     env = dict(os.environ, PYTHONIOENCODING="utf-8:replace")
-    proc = subprocess.Popen(
-        cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
-        encoding="utf-8", errors="replace", creationflags=creationflags,
-        env=env, bufsize=0)
-    assert proc.stdout is not None
-    output_parts: list[str] = []
-    record = ""
 
     def report_record(value: str) -> None:
         line = value.strip()
@@ -379,23 +441,36 @@ def pack_pfs(image: Path, output: Path | None = None, *,
         else:
             progress(ProgressEvent("pfs", 0, 0, line[:180]))
 
-    while True:
-        char = proc.stdout.read(1)
-        if not char:
-            break
-        output_parts.append(char)
-        if char in "\r\n":
-            report_record(record)
-            record = ""
-        else:
-            record += char
-    report_record(record)
-    proc.wait()
-    process_output = "".join(output_parts)
-    if proc.returncode != 0:
-        raise RuntimeError(
-            f"mkpfs pack failed (exit {proc.returncode}):\n"
-            f"{process_output[-4000:]}")
+    try:
+        proc = subprocess.Popen(
+            cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
+            encoding="utf-8", errors="replace", creationflags=creationflags,
+            env=env, bufsize=0)
+        assert proc.stdout is not None
+        output_parts: list[str] = []
+        record = ""
+        while True:
+            char = proc.stdout.read(1)
+            if not char:
+                break
+            output_parts.append(char)
+            if char in "\r\n":
+                report_record(record)
+                record = ""
+            else:
+                record += char
+        report_record(record)
+        proc.wait()
+        process_output = "".join(output_parts)
+        if proc.returncode != 0:
+            raise RuntimeError(
+                f"mkpfs pack failed (exit {proc.returncode}):\n"
+                f"{process_output[-4000:]}")
+        partial.replace(output)
+    except BaseException:
+        partial.unlink(missing_ok=True)
+        partial_tmp.unlink(missing_ok=True)
+        raise
     if progress:
         progress(ProgressEvent("pfs", 1, 1, output.name))
     return output

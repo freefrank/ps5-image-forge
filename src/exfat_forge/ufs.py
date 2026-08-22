@@ -128,9 +128,8 @@ def build_ffpkg(source: Path, output: Path, *,
     path, so a failure never leaves a half-image under the real name.
     """
     if output.is_dir():
-        from .core import read_param_json
-        title_id, _, _ = read_param_json(source)
-        output = output / f"{title_id or source.name}.ffpkg"
+        from .core import default_output_stem
+        output = output / f"{default_output_stem(source)}.ffpkg"
     output.parent.mkdir(parents=True, exist_ok=True)
     partial = output.with_name(output.name + ".part")
     partial.unlink(missing_ok=True)

@@ -70,6 +70,12 @@ exfat-forge history
 exfat-forge catalog
 ```
 
+默认输出文件名来自游戏元数据，格式为
+`PPSA_TITLE_VERSION.ext`，例如
+`PPSA21564_ASTRO_BOT_01.000.000.ffpfsc`。标题中的 Windows 非法字符会
+自动清理；将已有 exFAT 镜像转换为 PFS 时也会读取镜像内的
+`sce_sys/param.json`，无需先解包。
+
 CLI 消息跟随系统语言，`EXFAT_FORGE_LANG=en|zh` 可覆盖。
 
 ## 开发
@@ -78,7 +84,7 @@ CLI 消息跟随系统语言，`EXFAT_FORGE_LANG=en|zh` 可覆盖。
 pytest tests/
 ```
 
-115 个测试覆盖：镜像构建/校验/腐蚀检测/逐字节解包往返、三格式流水线、
+127 个测试覆盖：镜像构建/校验/腐蚀检测/逐字节解包往返、三格式流水线、
 设置与历史持久化（含损坏文件与旧版本字段）、库扫描、payload ELF 解析
 （含真实 PS5 payload）、PS5 协议与端口扫描（本地 socket 模拟真实线路行为）、payload 目录与下载、
 Backport 扫描/降级/备份与签名文件保护，以及 GUI 的完整后端接口（无窗口驱动）。

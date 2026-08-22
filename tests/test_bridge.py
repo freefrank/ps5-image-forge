@@ -33,7 +33,7 @@ def dump(tmp_path: Path) -> Path:
     src = tmp_path / "PPSA77777-app0"
     (src / "sce_sys").mkdir(parents=True)
     (src / "sce_sys" / "param.json").write_text(json.dumps({
-        "titleId": "PPSA77777",
+        "titleId": "PPSA77777", "contentVersion": "03.000.000",
         "localizedParameters": {"defaultLanguage": "en-US",
                                 "en-US": {"titleName": "Bridge Test"}},
     }), encoding="utf-8")
@@ -172,7 +172,8 @@ def test_build_pushes_progress_and_done(dump: Path, tmp_path: Path) -> None:
     assert b.last("onError") is None
     phases = {a[0]["phase"] for n, a in b.calls if n == "onProgress"}
     assert {"scan", "write", "verify"} <= phases
-    assert (tmp_path / "out" / "PPSA77777.exfat").is_file()
+    assert (tmp_path / "out" /
+            "PPSA77777_Bridge_Test_03.000.000.exfat").is_file()
 
 
 def test_build_can_skip_optional_verification(dump: Path, tmp_path: Path) -> None:
@@ -236,7 +237,8 @@ def test_extract_and_inspect_image(dump: Path, tmp_path: Path) -> None:
     b.start_build({"source": str(dump), "output": str(tmp_path / "out"),
                    "mode": "exfat"})
     b.wait()
-    image = tmp_path / "out" / "PPSA77777.exfat"
+    image = (tmp_path / "out" /
+             "PPSA77777_Bridge_Test_03.000.000.exfat")
 
     info = b.inspect_image(str(image))
     assert info["ok"] and info["fmt"] == "exfat" and info["file_count"] == 2

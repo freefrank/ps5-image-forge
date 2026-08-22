@@ -45,6 +45,7 @@ def test_scan_reads_param_json(dump: Path) -> None:
     info = core.scan_source(dump)
     assert info.title_id == "PPSA99999"
     assert info.title == "Test Game"
+    assert info.version == "01.000.000"
     assert info.file_count == 35
     assert info.total_bytes > 3_000_000
 
@@ -53,7 +54,7 @@ def test_build_verify_roundtrip(dump: Path, tmp_path: Path) -> None:
     out_dir = tmp_path / "out"
     out_dir.mkdir()
     image = core.build_exfat(dump, out_dir)
-    assert image.name == "PPSA99999.exfat"
+    assert image.name == "PPSA99999_Test_Game_01.000.000.exfat"
     assert not list(out_dir.glob("*.part")), "partial file must not survive"
 
     # exFAT signature at offset 3 — same check the old tool's verifier used
@@ -63,6 +64,21 @@ def test_build_verify_roundtrip(dump: Path, tmp_path: Path) -> None:
     files, total = core.verify_image(image, dump)
     assert files == 35
     assert total == core.scan_source(dump).total_bytes
+
+
+def test_default_output_name_is_windows_safe_and_omits_missing_parts(
+        dump: Path, tmp_path: Path) -> None:
+    param = dump / "sce_sys" / "param.json"
+    data = json.loads(param.read_text(encoding="utf-8"))
+    data["localizedParameters"]["en-US"]["titleName"] = "Game: A/B?  Deluxe"
+    data["contentVersion"] = "02.000.001"
+    param.write_text(json.dumps(data), encoding="utf-8")
+    assert core.default_output_name(dump) == \
+        "PPSA99999_Game_A_B_Deluxe_02.000.001.exfat"
+
+    plain = tmp_path / "Fallback Game"
+    plain.mkdir()
+    assert core.default_output_name(plain) == "Fallback_Game.exfat"
 
 
 def test_verify_catches_corruption(dump: Path, tmp_path: Path) -> None:
@@ -133,3 +149,35 @@ def test_pack_pfs_compressed(dump: Path, tmp_path: Path) -> None:
         [sys.executable, "-m", "mkpfs", "verify", str(packed)],
         capture_output=True, text=True)
     assert check.returncode == 0, check.stdout + check.stderr
+
+
+def test_pack_pfs_replaces_existing_output(
+        dump: Path, tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch) -> None:
+    """GUI packing must never enter MkPFS's interactive overwrite prompt."""
+    import io
+
+    image = core.build_exfat(dump, tmp_path / "img")
+    output = tmp_path / "existing.ffpfsc"
+    output.write_bytes(b"old image")
+
+    class SuccessfulPack:
+        returncode = 0
+
+        def __init__(self, cmd: list[str], **_kwargs: object) -> None:
+            self.stdout = io.StringIO("")
+            packed_path = Path(cmd[cmd.index("file") + 2])
+            assert packed_path == output.with_name(
+                output.stem + ".part" + output.suffix)
+            assert not packed_path.exists()
+            packed_path.write_bytes(b"new image")
+
+        def wait(self) -> int:
+            return self.returncode
+
+    monkeypatch.setattr(core.subprocess, "Popen", SuccessfulPack)
+
+    assert core.pack_pfs(image, output, compress=False) == output
+    assert output.read_bytes() == b"new image"
+    assert not output.with_name(
+        output.stem + ".part" + output.suffix).exists()

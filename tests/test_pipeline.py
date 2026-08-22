@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from exfat_forge import library, pipeline, ufs
+from exfat_forge import core, library, pipeline, ufs
 from exfat_forge.settings import History, HistoryEntry, Settings
 
 _HAS_UFS = ufs.tool_available() and ufs.dotnet_status().available
@@ -95,11 +95,22 @@ def test_library_does_not_descend_into_dumps(dump: Path, tmp_path: Path) -> None
 
 # ── pipeline ──────────────────────────────────────────────────────
 
+def test_default_names_include_title_id_title_and_version(dump: Path) -> None:
+    stem = "PPSA55555_Pipeline_Test_02.000.000"
+    assert pipeline.default_name(dump, "exfat") == stem + ".exfat"
+    assert pipeline.default_name(dump, "ffpkg") == stem + ".ffpkg"
+    assert pipeline.default_name(dump, "pfs") == stem + ".ffpfsc"
+
+    image = core.build_exfat(dump, dump.parent / "PPSA55555.exfat")
+    assert pipeline.default_name(image, "pfs") == stem + ".ffpfsc"
+
+
 def test_pipeline_exfat_records_history(dump: Path, tmp_path: Path) -> None:
     spec = pipeline.JobSpec(source=dump, output_dir=tmp_path / "out",
                             fmt="exfat")
     result = pipeline.run_job(spec)
-    assert result.output.name == "PPSA55555.exfat"
+    assert result.output.name == \
+        "PPSA55555_Pipeline_Test_02.000.000.exfat"
     assert result.verified and result.file_count == 7
 
     entry = History().load()[0]
