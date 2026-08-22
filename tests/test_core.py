@@ -120,9 +120,15 @@ def test_pack_pfs_compressed(dump: Path, tmp_path: Path) -> None:
     (dump / "assets" / "zeros.bin").write_bytes(b"\0" * 4_000_000)
     image = core.build_exfat(dump, tmp_path / "img")
     plain = core.pack_pfs(image, tmp_path / "plain.ffpfsc", compress=False)
+    events: list[core.ProgressEvent] = []
     packed = core.pack_pfs(image, tmp_path / "packed.ffpfsc",
-                           compress=True, compression_level=6)
+                           compress=True, compression_level=6,
+                           progress=events.append)
     assert packed.stat().st_size < plain.stat().st_size
+    assert any(event.detail.startswith("$ ") and "mkpfs" in event.detail
+               for event in events)
+    compression = [event for event in events if event.phase == "compress"]
+    assert compression and compression[-1].done == compression[-1].total == 100
     check = subprocess.run(
         [sys.executable, "-m", "mkpfs", "verify", str(packed)],
         capture_output=True, text=True)

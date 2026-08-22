@@ -23,6 +23,9 @@ work.
 from __future__ import annotations
 
 import json
+import hashlib
+import os
+import shutil
 import sys
 import threading
 import urllib.error
@@ -52,6 +55,8 @@ class CatalogEntry:
     page_url: str | None
     firmwares: list[str] | None
     port: int | None
+    min_firmware: str | None = None
+    max_firmware: str | None = None
 
 
 def _data_file() -> Path:
@@ -77,8 +82,49 @@ def metadata_source() -> str:
         return ""
 
 
-def as_dicts() -> list[dict]:
-    return [asdict(e) for e in load()]
+def _bundle_dir() -> Path:
+    """Payload assets in the source tree, or in a frozen one-file bundle."""
+    if getattr(sys, "frozen", False):
+        return Path(sys._MEIPASS) / "exfat_forge" / "bundled_payloads"  # type: ignore[attr-defined]
+    return Path(__file__).resolve().parents[2] / "vendor" / "payloads"
+
+
+def _bundle_manifest() -> dict[str, dict]:
+    try:
+        doc = json.loads((_bundle_dir() / "manifest.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    return {str(e["id"]): e for e in doc.get("entries", [])
+            if isinstance(e, dict) and e.get("id")}
+
+
+def validate_bundled() -> int:
+    """Verify every embedded asset against the committed manifest."""
+    manifest = _bundle_manifest()
+    if not manifest:
+        raise CatalogError("bundled payload manifest is missing")
+    for item in manifest.values():
+        path = _bundle_dir() / str(item.get("file", ""))
+        try:
+            data = path.read_bytes()
+        except OSError as exc:
+            raise CatalogError(f"bundled payload missing: {path.name}") from exc
+        if len(data) != int(item.get("size", -1)):
+            raise CatalogError(f"bundled payload size mismatch: {path.name}")
+        if hashlib.sha256(data).hexdigest() != str(item.get("sha256", "")).lower():
+            raise CatalogError(f"bundled payload hash mismatch: {path.name}")
+    return len(manifest)
+
+
+def as_dicts(firmware: str = "") -> list[dict]:
+    bundled = _bundle_manifest()
+    out = []
+    for entry in load():
+        item = asdict(entry)
+        item["bundled"] = entry.id in bundled
+        item["compatible"] = matches_firmware(entry, firmware) if firmware else True
+        out.append(item)
+    return out
 
 
 def find(entry_id: str) -> CatalogEntry:
@@ -89,10 +135,71 @@ def find(entry_id: str) -> CatalogEntry:
 
 
 def matches_firmware(entry: CatalogEntry, firmware: str) -> bool:
-    """The catalogue stores firmware *prefixes*; empty means "all"."""
-    if not entry.firmwares:
+    """Match exact/prefix lists and inclusive firmware ranges."""
+    firmware = firmware.strip()
+    if not firmware:
         return True
-    return any(firmware.startswith(p) for p in entry.firmwares)
+    if entry.firmwares and not any(firmware.startswith(p) for p in entry.firmwares):
+        return False
+    if not entry.min_firmware and not entry.max_firmware:
+        return True if not entry.firmwares else any(
+            firmware.startswith(p) for p in entry.firmwares)
+
+    def version(value: str) -> tuple[int, int]:
+        parts = value.split(".", 1)
+        return int(parts[0]), int((parts[1] if len(parts) > 1 else "0")[:2])
+
+    try:
+        current = version(firmware)
+        if entry.min_firmware and current < version(entry.min_firmware):
+            return False
+        if entry.max_firmware and current > version(entry.max_firmware):
+            return False
+    except (TypeError, ValueError):
+        return False
+    return True
+
+
+def install_bundled(entry: CatalogEntry, dest_dir: Path | None = None, *,
+                    overwrite: bool = False) -> Path:
+    """Verify and atomically materialize a bundled payload for normal use."""
+    manifest = _bundle_manifest().get(entry.id)
+    if not manifest:
+        raise CatalogError(f"{entry.title} is not bundled")
+    source = _bundle_dir() / str(manifest["file"])
+    try:
+        digest = hashlib.sha256(source.read_bytes()).hexdigest()
+    except OSError as exc:
+        raise CatalogError(f"bundled payload missing: {source.name}") from exc
+    if digest.lower() != str(manifest.get("sha256", "")).lower():
+        raise CatalogError(f"bundled payload failed SHA-256 verification: {source.name}")
+
+    if dest_dir is None:
+        from .settings import config_dir
+        dest_dir = config_dir() / "payloads"
+    dest_dir.mkdir(parents=True, exist_ok=True)
+    target = dest_dir / entry.file
+    if target.exists():
+        try:
+            same = hashlib.sha256(target.read_bytes()).hexdigest() == digest
+        except OSError:
+            same = False
+        if same:
+            return target
+        if not overwrite:
+            raise CatalogError(f"{target.name} already exists with different content")
+
+    partial = target.with_name(target.name + ".part")
+    partial.unlink(missing_ok=True)
+    try:
+        shutil.copyfile(source, partial)
+        if hashlib.sha256(partial.read_bytes()).hexdigest() != digest:
+            raise CatalogError(f"copy verification failed: {target.name}")
+        os.replace(partial, target)
+    except BaseException:
+        partial.unlink(missing_ok=True)
+        raise
+    return target
 
 
 def _check_url(url: str) -> None:

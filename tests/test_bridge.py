@@ -12,6 +12,7 @@ import json
 import random
 import threading
 import time
+from types import SimpleNamespace
 from pathlib import Path
 
 import pytest
@@ -69,10 +70,80 @@ def test_environment_and_settings_roundtrip() -> None:
     assert "ffpkg" in env and "version" in env
 
     saved = b.save_settings({"output_dir": r"D:\PS5", "pfs_level": 5,
+                             "ui_scale": 2.5,
                              "bogus_key": 1})
     assert saved["output_dir"] == r"D:\PS5" and saved["pfs_level"] == 5
+    assert saved["ui_scale"] == 2.5
     assert "bogus_key" not in saved
     assert Bridge(window=None).get_settings()["output_dir"] == r"D:\PS5"
+
+
+def test_window_maximize_is_not_fullscreen() -> None:
+    class FakeWindow:
+        def __init__(self) -> None:
+            self.calls: list[str] = []
+
+        def maximize(self) -> None:
+            self.calls.append("maximize")
+
+        def restore(self) -> None:
+            self.calls.append("restore")
+
+    window = FakeWindow()
+    b = Bridge(window=window)
+    assert b.toggle_maximize() is True
+    assert b.toggle_maximize() is False
+    assert window.calls == ["maximize", "restore"]
+    assert b.begin_resize("invalid-edge") is False
+
+
+def test_frameless_resize_posts_native_hit_test(monkeypatch: pytest.MonkeyPatch) -> None:
+    import ctypes
+
+    class NativeFunction:
+        def __init__(self) -> None:
+            self.calls: list[tuple] = []
+            self.argtypes = None
+            self.restype = None
+
+        def __call__(self, *args):
+            self.calls.append(args)
+            return 1
+
+    release = NativeFunction()
+    post = NativeFunction()
+    monkeypatch.setattr(ctypes, "windll", SimpleNamespace(user32=SimpleNamespace(
+        ReleaseCapture=release, PostMessageW=post)))
+
+    handle_value = 0x1234_5678_ABCD
+    dispatched: list[object] = []
+
+    def begin_invoke(action) -> None:
+        dispatched.append(action)
+        action()
+
+    native = SimpleNamespace(
+        InvokeRequired=True,
+        BeginInvoke=begin_invoke,
+        Handle=SimpleNamespace(ToInt64=lambda: handle_value),
+    )
+    b = Bridge(window=SimpleNamespace(native=native))
+    assert b.begin_resize("bottom-right") is True
+    assert len(dispatched) == 1
+    assert len(release.calls) == 1
+    assert post.calls[0][0].value == handle_value
+    assert post.calls[0][1:] == (0x00A1, 17, 0)
+
+
+def test_firmware_updates_recommended_backport_target() -> None:
+    b = RecordingBridge()
+    saved = b.save_settings({"ps5_firmware": "9.60"})
+    assert saved["backport_target"] == 9
+    assert saved["backport_target_recommended"] == 9
+
+    saved = b.save_settings({"ps5_firmware": "12.00"})
+    assert saved["backport_target"] == 10
+    assert saved["backport_target_recommended"] == 10
 
 
 def test_lang_switch_persists() -> None:
@@ -102,6 +173,16 @@ def test_build_pushes_progress_and_done(dump: Path, tmp_path: Path) -> None:
     phases = {a[0]["phase"] for n, a in b.calls if n == "onProgress"}
     assert {"scan", "write", "verify"} <= phases
     assert (tmp_path / "out" / "PPSA77777.exfat").is_file()
+
+
+def test_build_can_skip_optional_verification(dump: Path, tmp_path: Path) -> None:
+    b = RecordingBridge()
+    b.start_build({"source": str(dump), "output": str(tmp_path / "out"),
+                   "mode": "exfat", "verify": False})
+    b.wait()
+    phases = {a[0]["phase"] for n, a in b.calls if n == "onProgress"}
+    assert "write" in phases and "verify" not in phases
+    assert b.last("onDone") is not None
 
 
 def test_build_reports_error_not_crash(tmp_path: Path) -> None:
@@ -232,12 +313,22 @@ def test_port_scan_rejects_empty_host() -> None:
     assert RecordingBridge().scan_ps5_ports("  ")["ok"] is False
 
 
-def test_payload_catalog_exposes_metadata_only() -> None:
-    r = RecordingBridge().payload_catalog()
+def test_payload_catalog_exposes_bundled_and_firmware_compatibility() -> None:
+    r = RecordingBridge().payload_catalog("12.70")
     assert r["ok"] and len(r["entries"]) >= 19
-    assert r["source"]
+    assert r["source"] and r["firmware"] == "12.70"
+    assert sum(1 for e in r["entries"] if e["bundled"]) == 18
+    assert next(e for e in r["entries"] if e["id"] == "kstuff")["compatible"] is False
+    assert next(e for e in r["entries"] if e["id"] == "kstuff-lite")["compatible"] is True
     for e in r["entries"]:
         assert e["binary_url"] or e["page_url"]
+
+
+def test_install_bundled_payload_uses_managed_folder(tmp_path: Path) -> None:
+    b = RecordingBridge()
+    r = b.install_bundled_payload("ftpsrv-ps5")
+    assert r["ok"] and Path(r["path"]).read_bytes().startswith(b"\x7fELF")
+    assert b.get_settings()["payload_dir"] == r["folder"]
 
 
 def test_download_needs_a_folder() -> None:

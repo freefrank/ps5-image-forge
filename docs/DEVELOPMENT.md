@@ -3,9 +3,9 @@
 本文件记录 exFAT Forge 的**当前状态**、**已确定的需求与设计决策**、**未完成的工作**。
 README 面向使用者，本文件面向继续开发的人（包括未来的我们自己）。
 
-- 版本：v0.3.0（开发中）
+- 版本：v0.6.0
 - 更新日期：2026-08-22
-- 测试：`100 passed`（`.venv/Scripts/python.exe -m pytest tests/ -q`）
+- 测试：`124 passed`（`.venv/Scripts/python.exe -m pytest tests/ -q`）
 
 ---
 
@@ -51,6 +51,7 @@ entry.py
                           ├─ ps5.py        FTP / 内核日志 / payload 发送
                           ├─ ps5_services.py  已知端口表 + 单机端口扫描
                           ├─ catalog.py    payload 目录（元数据 + 按需下载）
+                          ├─ backport.py   SELF/FSELF 还原、SDK 降级、fake-sign 与验证
                           └─ settings.py   设置 / 历史持久化
 ```
 
@@ -70,6 +71,7 @@ entry.py
 | `ps5.py` | 274 | FTP / klog / payload 发送 | `test_ps5.py` | ✅ 协议层 |
 | `ps5_services.py` | 119 | 已知服务端口表、单机并发扫描 | `test_ps5_services.py` | ✅ |
 | `catalog.py` | 161 | payload 目录读取与按需下载 | `test_catalog.py` | ✅ |
+| `backport.py` | — | SELF/FSELF 还原、SDK 降级、fake-sign、备份与原子替换 | `test_backport.py` | ✅ |
 | `bridge.py` | 425 | JS API（34 个方法） | `test_bridge.py` | ✅ |
 | `cli.py` | 205 | env/build/verify/extract/list/history/catalog | — | 手工验证 |
 | `i18n.py` | 88 | 后端消息本地化 | — | 随其他测试覆盖 |
@@ -83,7 +85,7 @@ entry.py
 
 | # | 需求 | 决策 / 落地 |
 |---|---|---|
-| 1 | 单文件 exe | PyInstaller `--onefile --windowed`，约 18 MB；GUI/CLI 同一个 exe，靠 argv 分流 |
+| 1 | 单文件 exe | PyInstaller `--onefile --windowed`，当前约 32 MB（含 18 个 payload）；GUI/CLI 同一个 exe，靠 argv 分流 |
 | 2 | 带 `.ffpfsc` 压缩 | MkPFS PFSC 块压缩，deflate 级别 1–9，默认 9 |
 | 3 | 赛博朋克 UI + 动效 | 霓虹面板、扫描线、流光进度条；无边框窗口 + 自定义标题栏 |
 | 4 | i18n | 中/英实时切换，前后端各一套；CLI 跟随系统语言，`EXFAT_FORGE_LANG` 可覆盖 |
@@ -92,7 +94,9 @@ entry.py
 | 7 | Payload 库：选目录、从文件读信息与说明 | `payloads.py`：ELF 头 / build-id / `.comment` / `.rodata` 字符串推断名称、版本、能力标签 |
 | 8 | exFAT 默认簇 64 KB | `core.DEFAULT_CLUSTER_SIZE = 65536`；不再让 MkPFS 按树自选（会在 32K/64K 之间摇摆，破坏可复现性） |
 | 9 | PS5 Manager：扫描越狱主机常用端口 | 后端 + 页面已完成，见 §5.1 |
-| 10 | payload 来源可用 `45.56.67.85` | 用户明确表示该站点在 scene 内可信。**但不把二进制打进 exe**，见 §5.2 |
+| 10 | payload 来源可用 `45.56.67.85` | 用户明确确认该站点由 scene 内非常 reputable 的维护者建立；内置其目录中的 17 个可直接获取的常用 payload，并从官方 release 补入 BackPork，见 §5.2 |
+| 11 | 固件版本由用户选择 | 不通过 9021 执行探针；保存 `settings.ps5_firmware`，目录默认只显示兼容项，可手动显示全部 |
+| 12 | BackPork 降级内置在 App | 独立 Backport 页；ELF 与可还原的 SELF/FSELF 可自动降级到 SDK 1.00–10.00 并 fake-sign，默认创建并校验 `.bak.zip`，支持一键恢复且兼容旧 `.bak`；目标 SDK 按用户设置的 PS5 固件主版本建议（最高 10.xx），仍可手动覆盖；官方 BackPork 0.1 payload 随包内置 |
 
 ### 不可回退的不变量
 
@@ -130,7 +134,7 @@ entry.py
 ```
 
 ```bash
-python -m PyInstaller --onefile --windowed --name exFAT-Forge --collect-submodules mkpfs --collect-all webview --add-data "src/exfat_forge/webui;exfat_forge/webui" --add-data "src/exfat_forge/payload_catalog.json;exfat_forge" --add-data "vendor/ufs2tool;ufs2tool" entry.py
+python -m PyInstaller --onefile --windowed --name exFAT-Forge --collect-submodules mkpfs --collect-all webview --add-data "src/exfat_forge/webui;exfat_forge/webui" --add-data "src/exfat_forge/payload_catalog.json;exfat_forge" --add-data "vendor/payloads;exfat_forge/bundled_payloads" --add-data "vendor/ufs2tool;ufs2tool" entry.py
 ```
 
 UI 单独开发（无后端时进 demo 模式，用合成数据渲染全部界面）：
@@ -142,10 +146,11 @@ python -m http.server 8899 -d src/exfat_forge/webui
 `--selftest` 除了跑一遍构建/校验/压缩，还会 `catalog.load()` ——
 **打包后数据文件丢没丢，只有冻结的 exe 能证明**，import 通过不代表 JSON 进了 bundle。
 
-100 个测试覆盖：镜像构建/校验/**腐蚀检测**/逐字节解包往返、三格式流水线、
+115 个测试覆盖：镜像构建/校验/**腐蚀检测**/逐字节解包往返、三格式流水线、
 设置与历史持久化（含损坏文件与旧版本字段）、库扫描、payload ELF 解析（含真实 PS5 payload）、
 PS5 协议与端口扫描（本地 socket 服务器模拟真实线路行为）、
-payload 目录与下载（含取消 / 失败不留残留文件 / 拒绝非 https）、GUI 全部后端接口（无窗口驱动）。
+payload 目录与下载（含取消 / 失败不留残留文件 / 拒绝非 https）、Backport 安全降级、
+GUI 全部后端接口（无窗口驱动）。
 
 前端另有一致性检查（手动跑）：`index.html` 的 `data-i18n` / `data-i18n-ph` 键
 与 `app.js` 里 `t("…")` 用到的键，必须在 zh / en 两张表里都存在且两表键集相同。
@@ -207,29 +212,35 @@ payload 目录与下载（含取消 / 失败不留残留文件 / 拒绝非 https
 而且每条的 `binarySource` 都指向**项目自己的 release 资产**（github.com / git.etawen.dev），
 不是该站点的镜像。这正好落在我们要的位置上。
 
-**决策：不把任何第三方二进制打进 exe。**
+**更新后的决策：内置可追溯、固定版本、带 SHA-256 的常用 payload。**
 
-理由不是不信任该站点 —— 用户已明确说明其在 scene 内的声誉，这一点接受 ——
-而是：无法校验的第三方可执行文件一旦成为**分发物的一部分**，就变成了供应链风险，
-且 payload 版本更新远快于本工具的发版节奏，内置的那一份很快就是错的。
+用户再次明确要求执行，并确认该站点由 scene 内非常 reputable 的维护者建立。二进制取
+`payload_map.js` 标注的项目上游 GitHub / Gitea release，而不是从 HTTP IP 下载；每个文件
+的 URL、版本、尺寸和 SHA-256 固定在 `vendor/payloads/manifest.json`。无法直接获取或链接
+失效的条目不内置，不用 fork 静默替换。
 
 落地：
 
-- `src/exfat_forge/payload_catalog.json`：19 条**纯元数据**
+- `src/exfat_forge/payload_catalog.json`：19 条目录元数据
   （id / 标题 / 文件名 / 作者 / 版本 / 说明 / 项目地址 / 下载地址 / 适用固件 / 目标端口）。
   由 `payload_map.js` 转换而来，`metadata_source` 字段记录来源。
-- `catalog.py`：`load()` / `find()` / `matches_firmware()` / `download()`。
+- `vendor/payloads/`：18 个固定版本二进制（约 21.1 MiB）、哈希清单与出处说明。
+- `tools/sync_bundled_payloads.py`：维护者显式运行的同步工具，只接受目录中的 HTTPS 直链。
+- `catalog.py`：`load()` / `find()` / `matches_firmware()` / `validate_bundled()` /
+  `install_bundled()` / `download()`。
+  内置文件先验 SHA-256，再经 `.part` 原子释放；已有相同文件直接复用，不同文件默认不覆盖。
   下载**只允许 https**（loopback 例外，测试用），写 `.part` 成功后改名，
   可取消，已存在的文件默认不覆盖。
-- `bridge.py`：`payload_catalog()` / `download_catalog_payload()` / `cancel_download()` / `open_url()`。
-- Payload 页新增"目录"面板：筛选、逐条获取、进度百分比，完成后自动重扫本地库，
-  下载到的文件立刻按普通本地 payload 显示（能力标签、备注等）。
+- `bridge.py`：增加 `install_bundled_payload()`；`payload_catalog(firmware)` 返回兼容标记。
+- Payload 页增加手动固件选择并持久化；默认隐藏不兼容项，可显示全部。内置项显示“使用”，
+  释放后自动重扫本地库；非内置项保留获取或打开页面。
 
-**两类条目**：16 条有 release 直链 → 显示"获取"；
-3 条只发布 release 页或 CI 产物（`libhijacker-game-patch`、`kstuff-toggle`、`rp-get-pin`）
+**两类条目**：16 条有有效 release 直链并已内置 → 显示“使用”；
+2 条只发布 release 页或 CI 产物（`libhijacker-game-patch`、`kstuff-toggle`）
 → 显示"打开页面"，**不给一个必然失败的下载按钮**。
 
-**维护**：`python tools/check_catalog_links.py` 逐条发范围 GET 复查链接，
+**维护**：`python tools/check_catalog_links.py` 逐条发范围 GET 复查链接；确认版本后运行
+`python tools/sync_bundled_payloads.py` 更新二进制与 manifest，并审查哈希差异。
 死链退出码非 0。**不进测试套件** —— 它要联网，且别人删了自己的 release
 不应该让其他人的构建变红。2026-08-22 检查：19/19 全部可达。
 
@@ -249,6 +260,8 @@ payload 目录与下载（含取消 / 失败不留残留文件 / 拒绝非 https
   "Image is too small: no more cylinder groups available"，
   现按 `1.15 / 1.45 / 2.00` 三档递增系数 + 冗余重试，未做精确的柱面组计算。
 - **`vendor/ufs2tool/` 来自 exFAT Image Builder v4.0.2**，出处见该目录下 `PROVENANCE.md`。
+- **`src/exfat_forge/_vendor/make_fself.py` 来自 ps5-payload-dev/sdk**，保持上游文件不变；
+  哈希、来源与 GPL-3.0-or-later 文本位于同目录。SELF 还原与流水线编排为本项目独立实现。
 
 ---
 

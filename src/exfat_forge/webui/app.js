@@ -9,9 +9,35 @@
 const $ = id => document.getElementById(id);
 const $$ = sel => Array.from(document.querySelectorAll(sel));
 const bridge = () => (window.pywebview && window.pywebview.api) || null;
+const APP_VERSION = "0.6.0";
+let currentUiScale = 1;
+
+function syncScaleLayout() {
+  const effectiveWidth = innerWidth / currentUiScale;
+  document.documentElement.classList.toggle("compact-scale", effectiveWidth <= 900);
+  document.documentElement.classList.toggle("narrow-scale", effectiveWidth <= 520);
+  document.documentElement.classList.toggle("ultra-scale", effectiveWidth <= 360);
+  const footer = $("app-log-footer");
+  if (footer && !footer.classList.contains("collapsed")) clampAppLogHeight();
+}
+
+function applyUiScale(value) {
+  const allowed = [0.8, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2, 2.25, 2.5];
+  const requested = Number(value);
+  const scale = allowed.includes(requested) ? requested : 1;
+  const root = $("ui-root");
+  currentUiScale = scale;
+  document.documentElement.classList.toggle("high-scale", scale >= 1.5);
+  syncScaleLayout();
+  root.style.zoom = String(scale);
+  root.style.width = "100%";
+  root.style.height = "100%";
+  return scale;
+}
+window.addEventListener("resize", syncScaleLayout);
 
 let lang = "zh";
-let scanRows = [], catItems = [];
+let scanRows = [], catItems = [], bpItems = [], bpBackups = [];
 const S = {                      // build page state
   mode: "exfat", verify: true, compress: true, keep: false,
   overwrite: false, follow: true, running: false, t0: 0,
@@ -31,15 +57,29 @@ function applyLang() {
     el.textContent = t(el.dataset.i18n);
   });
   $$("[data-i18n-ph]").forEach(el => el.placeholder = t(el.dataset.i18nPh));
+  $$("[data-i18n-title]").forEach(el => el.title = t(el.dataset.i18nTitle));
+  $$("[data-i18n-aria]").forEach(el =>
+    el.setAttribute("aria-label", t(el.dataset.i18nAria)));
   const ph = $("phase");
   ph.textContent = t("phase." + (ph.dataset.k || "standby"));
   $$("#lang-switch span").forEach(el =>
     el.classList.toggle("on", el.dataset.lang === lang));
   document.documentElement.lang = lang;
+  const footer = $("app-log-footer");
+  if (footer) $("app-log-summary").title = footer.classList.contains("collapsed")
+    ? t("log.expand") : t("log.collapse");
+  if ($("app-log-copy")) $("app-log-copy").title = t("log.copy");
   renderHistory(lastHistory);
   if (scanRows.length) renderPorts();
   if (lastVerdict) showVerdict(lastVerdict);
   if (catItems.length) renderCatalog();
+  if (catItems.length) renderPayloadCredits();
+  if (bpItems.length) renderBackport();
+  if (bpBackups.length) updateBackportBackups(
+    bpBackups.filter(item => item.restorable).length);
+  if (ftpListedPath !== null) renderFtpEntries();
+  if ($("set-ps5fw"))
+    syncBackportTargetFromFirmware($("set-ps5fw").value.trim());
 }
 
 /* ── helpers ──────────────────────────────────────────── */
@@ -54,6 +94,21 @@ function esc(s) {
   return String(s == null ? "" : s).replace(/[&<>"]/g,
     c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 }
+function appendAppLog(line, cls) {
+  const box = $("app-log-content");
+  if (!box || line == null || line === "") return;
+  const stamp = new Date().toLocaleTimeString([], { hour12: false });
+  const text = `[${stamp}] ${String(line)}`;
+  const div = document.createElement("div");
+  div.className = "ln" + (cls ? " " + cls : "");
+  div.textContent = text;
+  box.appendChild(div);
+  while (box.childNodes.length > 2500) box.removeChild(box.firstChild);
+  box.scrollTop = box.scrollHeight;
+  const last = $("app-log-last");
+  last.textContent = text;
+  last.className = "app-log-last" + (cls ? " " + cls : "");
+}
 function log(box, line, cls) {
   const el = typeof box === "string" ? $(box) : box;
   const div = document.createElement("div");
@@ -62,6 +117,7 @@ function log(box, line, cls) {
   el.appendChild(div);
   el.scrollTop = el.scrollHeight;
   while (el.childNodes.length > 600) el.removeChild(el.firstChild);
+  if (el.id !== "app-log-content") appendAppLog(line, cls);
 }
 function chip(id, key, initial) {
   const el = $(id);
@@ -77,6 +133,11 @@ function goto(page) {
   $$(".page").forEach(p => p.classList.toggle("on", p.id === "page-" + page));
   if (page === "history") refreshHistory();
   if (page === "home") refreshHome();
+  if (page === "payload" && !catItems.length) loadCatalog();
+  if (page === "about") {
+    if (catItems.length) renderPayloadCredits();
+    else loadCatalog();
+  }
 }
 $$(".nav").forEach(n => n.onclick = () => goto(n.dataset.page));
 $$("[data-goto]").forEach(c => c.onclick = () => goto(c.dataset.goto));
@@ -114,8 +175,133 @@ $$("[data-goto]").forEach(c => c.onclick = () => goto(c.dataset.goto));
 
 /* ── window buttons ───────────────────────────────────── */
 $("win-min").onclick = () => { const b = bridge(); if (b) b.minimize(); };
-$("win-max").onclick = () => { const b = bridge(); if (b) b.toggle_maximize(); };
+async function toggleMaximize() {
+  const b = bridge();
+  if (!b) return;
+  const maximized = await b.toggle_maximize();
+  document.documentElement.classList.toggle("maximized", maximized);
+  $("win-max").textContent = maximized ? "❐" : "▢";
+}
+
+let dialogResolve = null;
+let dialogPreviousFocus = null;
+function closeAppDialog(confirmed) {
+  if (!dialogResolve) return;
+  const resolve = dialogResolve;
+  dialogResolve = null;
+  $("app-dialog-backdrop").hidden = true;
+  if (dialogPreviousFocus && dialogPreviousFocus.isConnected)
+    dialogPreviousFocus.focus();
+  dialogPreviousFocus = null;
+  resolve(Boolean(confirmed));
+}
+function confirmInApp(message, options = {}) {
+  if (dialogResolve) closeAppDialog(false);
+  dialogPreviousFocus = document.activeElement;
+  $("app-dialog-title").textContent = options.title || t("dialog.backport.title");
+  $("app-dialog-message").textContent = message;
+  $("app-dialog-note").textContent = options.note || t("dialog.backup.note");
+  $("app-dialog-backdrop").hidden = false;
+  return new Promise(resolve => {
+    dialogResolve = resolve;
+    requestAnimationFrame(() => $("app-dialog-confirm").focus());
+  });
+}
+$("app-dialog-confirm").onclick = () => closeAppDialog(true);
+$("app-dialog-cancel").onclick = () => closeAppDialog(false);
+$("app-dialog-backdrop").addEventListener("mousedown", ev => {
+  if (ev.target === ev.currentTarget) closeAppDialog(false);
+});
+document.addEventListener("keydown", ev => {
+  if (!dialogResolve) return;
+  if (ev.key === "Escape") { ev.preventDefault(); closeAppDialog(false); }
+  if (ev.key === "Enter") { ev.preventDefault(); closeAppDialog(true); }
+});
+
+/* ── global application log drawer ────────────────────── */
+function appLogHeightBounds() {
+  const available = innerHeight / currentUiScale;
+  const min = Math.min(120, Math.max(72, available * .32));
+  return { min, max: Math.max(min, available - 95) };
+}
+function clampAppLogHeight() {
+  const footer = $("app-log-footer");
+  if (!footer) return;
+  const bounds = appLogHeightBounds();
+  const configured = parseFloat(getComputedStyle(footer)
+    .getPropertyValue("--app-log-height")) || 220;
+  const height = Math.max(bounds.min, Math.min(bounds.max, configured));
+  footer.style.setProperty("--app-log-height", Math.round(height) + "px");
+}
+function setAppLogExpanded(expanded) {
+  const footer = $("app-log-footer");
+  footer.classList.toggle("collapsed", !expanded);
+  $("app-log-summary").setAttribute("aria-expanded", String(expanded));
+  $("app-log-drawer").setAttribute("aria-hidden", String(!expanded));
+  $("app-log-summary").title = t(expanded ? "log.collapse" : "log.expand");
+  if (expanded) clampAppLogHeight();
+  if (expanded) requestAnimationFrame(() => {
+    const box = $("app-log-content");
+    box.scrollTop = box.scrollHeight;
+  });
+}
+$("app-log-summary").onclick = () => setAppLogExpanded(
+  $("app-log-footer").classList.contains("collapsed"));
+$("app-log-summary").onkeydown = ev => {
+  if (ev.key === "Enter" || ev.key === " ") {
+    ev.preventDefault(); $("app-log-summary").click();
+  }
+};
+$("app-log-copy").onclick = async ev => {
+  ev.stopPropagation();
+  const text = Array.from($("app-log-content").children)
+    .map(line => line.textContent).join("\n");
+  try {
+    if (!navigator.clipboard) throw new Error("clipboard unavailable");
+    await navigator.clipboard.writeText(text);
+  } catch (_) {
+    const area = document.createElement("textarea");
+    area.value = text; area.style.cssText = "position:fixed;opacity:0;inset:0";
+    document.body.appendChild(area); area.select(); document.execCommand("copy"); area.remove();
+  }
+  const button = $("app-log-copy");
+  button.textContent = t("log.copied");
+  setTimeout(() => button.textContent = t("log.copy"), 1200);
+};
+$("app-log-resizer").addEventListener("pointerdown", ev => {
+  if (ev.button !== 0) return;
+  const footer = $("app-log-footer");
+  const startY = ev.clientY, startHeight = footer.offsetHeight;
+  document.documentElement.classList.add("resizing-log");
+  ev.currentTarget.setPointerCapture(ev.pointerId);
+  const move = moveEv => {
+    const bounds = appLogHeightBounds();
+    const height = Math.max(bounds.min, Math.min(bounds.max,
+      startHeight + (startY - moveEv.clientY) / currentUiScale));
+    footer.style.setProperty("--app-log-height", Math.round(height) + "px");
+  };
+  const stop = () => {
+    document.documentElement.classList.remove("resizing-log");
+    window.removeEventListener("pointermove", move);
+    window.removeEventListener("pointerup", stop);
+    window.removeEventListener("pointercancel", stop);
+  };
+  window.addEventListener("pointermove", move);
+  window.addEventListener("pointerup", stop);
+  window.addEventListener("pointercancel", stop);
+});
+$("win-max").onclick = toggleMaximize;
+document.querySelector("#titlebar .drag").ondblclick = toggleMaximize;
 $("win-close").onclick = () => { const b = bridge(); b ? b.close() : window.close(); };
+$$('.resize-handle').forEach(handle => {
+  handle.addEventListener("mousedown", ev => {
+    if (ev.button !== 0) return;
+    ev.preventDefault();
+    ev.stopPropagation();
+    const b = bridge();
+    if (b) b.begin_resize(handle.dataset.edge);
+  });
+});
 $("lang-switch").onclick = e => {
   const l = e.target.dataset.lang;
   if (!l || l === lang) return;
@@ -127,10 +313,30 @@ $("lang-switch").onclick = e => {
 function setPhase(key) { const p = $("phase"); p.dataset.k = key; p.textContent = t("phase." + key); }
 
 function onProgress(ev) {
+  const detail = String(ev.detail || "");
+  const pct = ev.total > 0 ? ` ${(100 * ev.done / ev.total).toFixed(1)}%` : "";
+  const progressLine = `${t("phase." + ev.phase)}${pct}${detail ? " · " + detail : ""}`;
+  const progressKey = `${ev.phase}|${detail}`;
+  const now = Date.now();
+  if (detail.startsWith("$ ") || progressKey !== onProgress.lastKey ||
+      now - (onProgress.lastAt || 0) >= 2500 || (ev.total > 0 && ev.done >= ev.total)) {
+    const progressBox = ev.phase === "upload" ? "ftp-log"
+      : ev.phase === "extract" ? "ex-log" : "log";
+    log(progressBox, progressLine);
+    onProgress.lastKey = progressKey; onProgress.lastAt = now;
+  }
   if (ev.phase === "upload") return onUploadProgress(ev);
-  setPhase(ev.phase);
   const bar = document.querySelector("#page-build .bar");
+  if (onProgress.lastPhase !== ev.phase) {
+    onProgress.lastPhase = ev.phase;
+    bar.classList.remove("idle", "indeterminate");
+    $("fill").style.width = "0%";
+    $("pct").textContent = "0.0%";
+    $("stats").textContent = "";
+  }
+  setPhase(ev.phase);
   if (ev.total > 0) {
+    bar.classList.remove("indeterminate");
     const frac = ev.done / ev.total;
     $("pct").textContent = (frac * 100).toFixed(1) + "%";
     $("fill").style.width = (frac * 100) + "%";
@@ -142,11 +348,15 @@ function onProgress(ev) {
         `${(sp / 1048576).toFixed(0)} MB/s · ${t("stats.eta")} ${((ev.total - ev.done) / sp).toFixed(0)}s`;
     } else $("stats").textContent = ev.detail || "";
   } else {
+    bar.classList.add("indeterminate");
+    $("pct").textContent = "···";
+    $("fill").style.width = "32%";
     $("stats").textContent = (ev.done ? ev.done.toLocaleString() + " " : "") + (ev.detail || "");
   }
 }
 function jobEnd(kind, msg) {
   S.running = false;
+  document.querySelector("#page-build .bar").classList.remove("indeterminate");
   document.querySelector("#page-build .bar").classList.add("idle");
   setPhase(kind);
   if (kind === "done") { $("pct").textContent = "100.0%"; $("fill").style.width = "100%"; }
@@ -271,6 +481,7 @@ $("source").onchange = () => describeSource($("source").value.trim());
 
 function startJob(logBox) {
   S.running = true; S.t0 = Date.now();
+  onProgress.lastPhase = null;
   $(logBox).innerHTML = "";
   $("pct").textContent = "0.0%"; $("fill").style.width = "0%";
   $("stats").textContent = "";
@@ -527,6 +738,79 @@ function demoScan() {
 }
 
 /* ── FTP page ─────────────────────────────────────────── */
+let ftpEntries = [], ftpListedPath = null, ftpListRequest = 0;
+
+function normalizeRemotePath(value) {
+  const parts = String(value || "/").replace(/\\/g, "/").split("/");
+  const clean = [];
+  for (const part of parts) {
+    if (!part || part === ".") continue;
+    if (part === "..") clean.pop();
+    else clean.push(part);
+  }
+  return "/" + clean.join("/");
+}
+function parentRemotePath(value) {
+  const parts = normalizeRemotePath(value).split("/").filter(Boolean);
+  parts.pop();
+  return "/" + parts.join("/");
+}
+function childRemotePath(base, name) {
+  const child = String(name || "").replace(/\\/g, "/").split("/")
+    .filter(part => part && part !== "." && part !== "..").join("/");
+  return normalizeRemotePath(`${normalizeRemotePath(base)}/${child}`);
+}
+function demoFtpEntries(path) {
+  const tree = {
+    "/": [{ name: "data", is_dir: true, size: 0 }, { name: "mnt", is_dir: true, size: 0 }],
+    "/data": [{ name: "etaHEN", is_dir: true, size: 0 }, { name: "home", is_dir: true, size: 0 }],
+    "/data/etaHEN": [{ name: "games", is_dir: true, size: 0 }, { name: "payloads", is_dir: true, size: 0 }],
+    "/data/etaHEN/games": [{ name: "PPSA01234", is_dir: true, size: 0 }, { name: "sample.exfat", is_dir: false, size: 8589934592 }],
+  };
+  return tree[path] || [{ name: "readme.txt", is_dir: false, size: 2048 }];
+}
+function renderFtpEntries() {
+  const path = normalizeRemotePath(ftpListedPath || "/");
+  const parent = path === "/" ? "" : `<tr class="ftp-dir clickable" data-ftp-parent="1" tabindex="0" role="button" title="${esc(t("ftp.up_title"))}">
+    <td><span class="ftp-kind">↰</span>..</td><td class="num">—</td></tr>`;
+  const rows = ftpEntries.map((entry, index) => {
+    const dir = !!entry.is_dir;
+    const attrs = dir ? ` class="ftp-dir clickable" data-ftp-index="${index}" tabindex="0" role="button" title="${esc(t("ftp.open_dir", { name: entry.name }))}"` : ` class="ftp-file"`;
+    return `<tr${attrs}><td><span class="ftp-kind">${dir ? "▸" : "·"}</span>${esc(entry.name)}</td>
+      <td class="num">${dir ? "—" : human(entry.size)}</td></tr>`;
+  }).join("");
+  $("ftp-entries").innerHTML = parent + rows;
+  $("ftp-empty").style.display = ftpEntries.length || parent ? "none" : "";
+  $("ftp-up").disabled = path === "/";
+}
+async function rememberFtpTarget(path) {
+  $("ftp-path").value = path;
+  if ($("set-ps5path")) $("set-ps5path").value = path;
+  const b = bridge();
+  if (b) {
+    try { await b.save_settings({ ps5_ftp_path: path }); } catch (e) {}
+  }
+}
+async function listFtpDirectory(requestedPath) {
+  const host = $("ftp-host").value.trim();
+  if (!host) { log("ftp-log", t("msg.need_host"), "err"); return; }
+  const path = normalizeRemotePath(requestedPath || $("ftp-path").value);
+  const request = ++ftpListRequest;
+  $("ftp-list").disabled = true;
+  const b = bridge();
+  const r = b ? await b.ps5_list(host, +$("ftp-port").value, path)
+              : { ok: true, entries: demoFtpEntries(path) };
+  if (request !== ftpListRequest) return;
+  $("ftp-list").disabled = false;
+  if (!r.ok) { log("ftp-log", t("err.prefix") + r.error, "err"); return; }
+  ftpListedPath = normalizeRemotePath(r.path || path);
+  ftpEntries = Array.isArray(r.entries) ? r.entries : [];
+  await rememberFtpTarget(ftpListedPath);
+  renderFtpEntries();
+  setPill("ftp-status", true, ftpListedPath);
+  log("ftp-log", t("ftp.listed", { path: ftpListedPath, count: ftpEntries.length }), "ok");
+}
+
 function setPill(id, good, text) {
   const el = $(id);
   el.classList.toggle("good", !!good);
@@ -542,17 +826,22 @@ $("ftp-probe").onclick = async () => {
     t(r.reachable ? "msg.probe_ok" : "msg.probe_bad", { d: r.detail }));
   log("ftp-log", `${host}:${$("ftp-port").value} — ${r.detail}`, r.reachable ? "ok" : "err");
 };
-$("ftp-list").onclick = async () => {
-  const host = $("ftp-host").value.trim();
-  if (!host) { log("ftp-log", t("msg.need_host"), "err"); return; }
-  const b = bridge(); if (!b) return;
-  const r = await b.ps5_list(host, +$("ftp-port").value, $("ftp-path").value.trim() || "/");
-  if (!r.ok) { log("ftp-log", t("err.prefix") + r.error, "err"); return; }
-  $("ftp-entries").innerHTML = r.entries.map(e => `<tr>
-    <td>${e.is_dir ? "▸ " : ""}${esc(e.name)}</td>
-    <td class="num">${e.is_dir ? "—" : human(e.size)}</td></tr>`).join("");
-  $("ftp-empty").style.display = r.entries.length ? "none" : "";
-  log("ftp-log", `${r.entries.length} entries`, "ok");
+$("ftp-list").onclick = () => listFtpDirectory();
+$("ftp-up").onclick = () => listFtpDirectory(parentRemotePath(ftpListedPath || $("ftp-path").value));
+$("ftp-path").onkeydown = ev => { if (ev.key === "Enter") listFtpDirectory(); };
+$("ftp-entries").onclick = ev => {
+  const row = ev.target.closest("tr");
+  if (!row || !row.classList.contains("ftp-dir")) return;
+  if (row.dataset.ftpParent) listFtpDirectory(parentRemotePath(ftpListedPath));
+  else {
+    const entry = ftpEntries[+row.dataset.ftpIndex];
+    if (entry && entry.is_dir) listFtpDirectory(childRemotePath(ftpListedPath, entry.name));
+  }
+};
+$("ftp-entries").onkeydown = ev => {
+  if (ev.key !== "Enter" && ev.key !== " ") return;
+  const row = ev.target.closest("tr.ftp-dir");
+  if (row) { ev.preventDefault(); row.click(); }
 };
 function onUploadProgress(ev) {
   const frac = ev.total ? ev.done / ev.total : 0;
@@ -601,7 +890,7 @@ $("pl-pick-dir").onclick = async () => {
 };
 $("pl-scan").onclick = () => scanPayloads();
 
-async function scanPayloads() {
+async function scanPayloads(preferredFilename = "") {
   const b = bridge();
   if (!b) { plItems = demoPayloads(); renderPayloads(); return; }
   const r = await b.scan_payloads($("pl-dir").value.trim());
@@ -609,11 +898,19 @@ async function scanPayloads() {
   if (r.folder) $("pl-dir").value = r.folder;
   plItems = r.items || [];
   renderPayloads();
+  if (preferredFilename) {
+    const index = plItems.findIndex(p => p.filename === preferredFilename);
+    if (index >= 0) {
+      const row = document.querySelector(`#pl-list tr[data-i="${index}"]`);
+      if (row) row.classList.add("sel");
+      selectPayload(plItems[index]);
+    }
+  }
   log("pl-log", `${plItems.length} payload(s)`, "ok");
 }
 
 function renderPayloads() {
-  $("pl-list").innerHTML = plItems.map((p, i) => `<tr data-i="${i}">
+  $("pl-list").innerHTML = plItems.map((p, i) => `<tr data-i="${i}" class="${plSel && plSel.path === p.path ? "sel" : ""}">
     <td>${esc(p.name)}${p.version ? ` <span class="pd-ver">${esc(p.version)}</span>` : ""}
         ${p.warning ? ' <span style="color:var(--warn)">⚠</span>' : ""}</td>
     <td><div class="caps">${(p.capabilities || []).slice(0, 3)
@@ -621,18 +918,24 @@ function renderPayloads() {
     <td class="num">${human(p.size_bytes)}</td></tr>`).join("");
   $("pl-empty").style.display = plItems.length ? "none" : "";
   $$("#pl-list tr").forEach(tr => tr.onclick = () => {
-    $$("#pl-list tr").forEach(x => x.classList.remove("sel"));
-    tr.classList.add("sel");
-    selectPayload(plItems[+tr.dataset.i]);
+    const payload = plItems[+tr.dataset.i];
+    if (plSel && plSel.path === payload.path) clearPayloadSelection();
+    else selectPayload(payload);
   });
-  if (!plItems.length) {
-    plSel = null; $("pl-send").disabled = true;
-    $("pl-detail").innerHTML = `<div class="empty">${t("payload.pick")}</div>`;
-  }
+  if (!plItems.some(p => plSel && p.path === plSel.path)) clearPayloadSelection();
+}
+
+function clearPayloadSelection() {
+  plSel = null;
+  $$("#pl-list tr").forEach(row => row.classList.remove("sel"));
+  $("pl-send").disabled = true;
+  $("pl-detail").innerHTML = `<div class="empty">${t("payload.pick")}</div>`;
 }
 
 function selectPayload(p) {
   plSel = p;
+  $$("#pl-list tr").forEach(row =>
+    row.classList.toggle("sel", plItems[+row.dataset.i].path === p.path));
   $("pl-send").disabled = false;
   const kv = (k, v) => v ? `<dt>${t(k)}</dt><dd>${esc(v)}</dd>` : "";
   const srcLabel = p.source === "notes" ? t("pd.source.notes")
@@ -670,42 +973,104 @@ function selectPayload(p) {
 }
 
 /* ── payload catalog ──────────────────────────────────── */
-/* Metadata ships with the app; binaries never do. "Get" pulls the file from
- * the project's own release into the user's payload folder, then rescans so
- * it shows up as an ordinary local payload. */
+/* Common binaries ship with the app. "Use" verifies and releases a bundled
+ * file into the managed payload folder; non-bundled entries keep the upstream
+ * download/page behavior. */
 let catBusy = null;
 
-$("cat-load").onclick = () => loadCatalog();
+function firmwareSdkTarget(firmware) {
+  const m = String(firmware || "").trim().match(/^(\d+)/);
+  if (!m || +m[1] < 1) return null;
+  return Math.max(1, Math.min(10, +m[1]));
+}
+
+function syncBackportTargetFromFirmware(firmware, target = null) {
+  const recommended = target || firmwareSdkTarget(firmware);
+  if (recommended) $("bp-target").value = String(recommended);
+  $("bp-recommend").textContent = recommended
+    ? t("bp.recommended", { firmware: firmware || "—", target: recommended }) : "";
+  return recommended;
+}
+
 $("cat-filter").oninput = () => renderCatalog();
+$("cat-fw").onchange = async () => {
+  const b = bridge();
+  const firmware = $("cat-fw").value.trim();
+  $("set-ps5fw").value = firmware;
+  syncBackportTargetFromFirmware(firmware);
+  if (b) await b.save_settings({ ps5_firmware: firmware });
+  loadCatalog();
+};
 $("cat-cancel").onclick = () => { const b = bridge(); if (b) b.cancel_download(); };
 
 async function loadCatalog() {
   const b = bridge();
   if (!b) { catItems = demoCatalog(); $("cat-source").textContent = "demo"; renderCatalog(); return; }
-  const r = await b.payload_catalog();
+  const r = await b.payload_catalog($("cat-fw").value.trim());
   if (!r.ok) { log("pl-log", t("err.prefix") + r.error, "err"); return; }
   catItems = r.entries || [];
+  if (r.firmware && !$("cat-fw").value) $("cat-fw").value = r.firmware;
   $("cat-source").textContent = t("cat.source", { url: r.source });
   renderCatalog();
+  renderPayloadCredits();
+}
+
+function catalogFw(e) {
+  if (e.min_firmware || e.max_firmware)
+    return `${e.min_firmware || "…"}–${e.max_firmware || "…"}`;
+  return e.firmwares ? e.firmwares.join(" ") : t("cat.allfw");
 }
 
 function renderCatalog() {
   const q = $("cat-filter").value.trim().toLowerCase();
-  const rows = catItems.filter(e => !q ||
-    (e.title + " " + e.author + " " + (e.firmwares || []).join(" ")).toLowerCase().includes(q));
-  $("cat-list").innerHTML = rows.map(e => `<tr data-id="${esc(e.id)}">
-    <td>${esc(e.title)}<div class="pd-strings">${esc(e.description)}</div></td>
-    <td class="dim">${esc(e.author)}</td>
+  const rows = catItems.filter(e => e.compatible !== false && (!q ||
+    (e.title + " " + e.author + " " + catalogFw(e)).toLowerCase().includes(q)));
+  $("cat-list").innerHTML = rows.map(e => `<tr data-id="${esc(e.id)}" class="${e.compatible === false ? "incompat" : ""}">
+    <td>${esc(e.title)}${e.bundled ? ` <span class="badge bundled">${t("cat.bundled")}</span>` : ""}<div class="pd-strings">${esc(e.description)}</div></td>
     <td class="num">${esc(e.version)}</td>
-    <td class="dim">${e.firmwares ? esc(e.firmwares.join(" ")) : t("cat.allfw")}</td>
-    <td><span class="lnk" data-act="${e.binary_url ? "get" : "open"}">${
-      t(e.binary_url ? "cat.get" : "cat.page")}</span>
+    <td class="dim">${esc(catalogFw(e))}</td>
+    <td>${e.bundled || e.binary_url ? `<span class="lnk" data-act="${e.bundled ? "install" : "get"}">${
+      t(e.bundled ? "cat.use" : "cat.get")}</span>` : ""}
+      ${e.page_url || e.project_url ? `<button class="cat-redirect">↗ ${t("cat.redirect")}</button>` : ""}
       <span class="dl" id="dl-${esc(e.id)}"></span></td></tr>`).join("");
   $("cat-empty").style.display = rows.length ? "none" : "";
   $$("#cat-list .lnk").forEach(el => el.onclick = () => {
     const e = catItems.find(x => x.id === el.closest("tr").dataset.id);
-    el.dataset.act === "get" ? getPayload(e) : openPage(e);
+    el.dataset.act === "install" ? installBundled(e) : getPayload(e);
   });
+  $$("#cat-list .cat-redirect").forEach(button => button.onclick = () => {
+    const e = catItems.find(x => x.id === button.closest("tr").dataset.id);
+    openPage(e);
+  });
+}
+
+function renderPayloadCredits() {
+  const box = $("about-payload-credits");
+  if (!box) return;
+  const entries = [...catItems].sort((a, b) =>
+    String(a.title).localeCompare(String(b.title)));
+  box.innerHTML = entries.map(e => `<div class="payload-credit" data-id="${esc(e.id)}">
+    <div class="payload-credit-info">
+      <div class="payload-credit-name">${esc(e.title)}</div>
+      <div class="payload-credit-author">${esc(e.author || t("about.payloads.community"))}</div>
+    </div>
+    ${e.page_url || e.project_url ? `<button class="payload-credit-link">↗ ${t("cat.redirect")}</button>` : ""}
+  </div>`).join("");
+  $$("#about-payload-credits .payload-credit-link").forEach(button =>
+    button.onclick = () => {
+      const entry = catItems.find(e => e.id === button.closest(".payload-credit").dataset.id);
+      openPage(entry);
+    });
+}
+
+async function installBundled(e) {
+  const b = bridge();
+  if (!b) { log("pl-log", "demo: use bundled " + e.file); return; }
+  const r = await b.install_bundled_payload(e.id, $("pl-dir").value.trim());
+  if (!r.ok) { log("pl-log", t("err.prefix") + r.error, "err"); return; }
+  $("pl-dir").value = r.folder;
+  log("pl-log", t("cat.installed", { name: r.file }), "ok");
+  await scanPayloads(r.file);
 }
 
 async function openPage(e) {
@@ -733,12 +1098,13 @@ function demoCatalog() {
       version: "0.21.1", description: "FTP server payload.", firmwares: null, port: 9021,
       project_url: "https://github.com/ps5-payload-dev/ftpsrv",
       binary_url: "https://github.com/ps5-payload-dev/ftpsrv/releases/download/v0.21.1/ftpsrv-ps5.elf",
-      page_url: null },
+      page_url: null, bundled: true, compatible: true },
     { id: "kstuff-toggle", title: "kstuff-toggle", file: "kstuff-toggle.elf", author: "EchoStretch",
       version: "0.2", description: "Published as a CI artifact — opens the page.",
       firmwares: ["3.", "4.", "5."], port: 9021,
       project_url: "https://github.com/EchoStretch/kstuff-toggle",
-      binary_url: null, page_url: "https://github.com/EchoStretch/kstuff-toggle/actions/runs/15086245462" },
+      binary_url: null, page_url: "https://github.com/EchoStretch/kstuff-toggle/actions/runs/15086245462",
+      bundled: false, compatible: true },
   ];
 }
 
@@ -771,12 +1137,119 @@ function demoPayloads() {
   ];
 }
 
+/* ── BackPork / SDK downgrade ─────────────────────────── */
+$("bp-pick").onclick = async () => {
+  const b = bridge(); if (!b) return;
+  const folder = await b.pick_folder();
+  if (folder) { $("bp-dir").value = folder; await scanBackport(); }
+};
+$("bp-scan").onclick = () => scanBackport();
+$("bp-apply").onclick = async () => {
+  const folder = $("bp-dir").value.trim();
+  if (!folder) { log("bp-log", t("bp.no_folder"), "err"); return; }
+  const target = +$("bp-target").value;
+  if (!await confirmInApp(t("bp.confirm", { target }))) return;
+  const b = bridge();
+  if (!b) { log("bp-log", "demo: SDK downgrade " + target + ".xx", "ok"); return; }
+  $("bp-apply").disabled = true;
+  const r = await b.backport_apply(folder, target, true);
+  if (!r.items) {
+    log("bp-log", t("err.prefix") + (r.error || "unknown error"), "err");
+    $("bp-apply").disabled = false;
+    return;
+  }
+  bpItems = r.items;
+  bpBackups = r.backups || [];
+  renderBackport();
+  updateBackportBackups(r.restorable || 0);
+  const msg = t("bp.done", r);
+  log("bp-log", msg, r.failed ? "err" : "ok");
+  r.items.filter(item => item.backup_path).forEach(item =>
+    log("bp-log", t("bp.backup_created", { path: item.backup_path }), "ok"));
+  $("bp-summary").textContent = msg;
+  $("bp-apply").disabled = false;
+};
+
+$("bp-restore").onclick = async () => {
+  const folder = $("bp-dir").value.trim();
+  if (!folder) { log("bp-log", t("bp.no_folder"), "err"); return; }
+  const count = bpBackups.filter(item => item.restorable).length;
+  if (!await confirmInApp(t("bp.restore_confirm", { count }), {
+    title: t("dialog.restore.title"), note: t("dialog.restore.note")
+  })) return;
+  const b = bridge();
+  if (!b) { log("bp-log", t("bp.restore_demo"), "ok"); return; }
+  $("bp-restore").disabled = true;
+  $("bp-apply").disabled = true;
+  const r = await b.backport_restore(folder);
+  if (!r.items) {
+    log("bp-log", t("err.prefix") + (r.error || "unknown error"), "err");
+  } else {
+    log("bp-log", t("bp.restore_done", r), r.failed ? "err" : "ok");
+    r.items.filter(item => item.result === "restored").forEach(item => {
+      log("bp-log", t("bp.restored_file", {
+        backup: item.backup_path, target: item.target_path
+      }), "ok");
+      if (item.preserved_path)
+        log("bp-log", t("bp.restore_preserved", { path: item.preserved_path }), "ok");
+    });
+  }
+  await scanBackport();
+};
+
+async function scanBackport() {
+  const folder = $("bp-dir").value.trim();
+  if (!folder) { log("bp-log", t("bp.no_folder"), "err"); return; }
+  const b = bridge();
+  if (!b) {
+    bpItems = [{ path: "D:\\game\\eboot.bin", status: "patchable",
+      sdk_band: 10, ps5_sdk_hex: "0x10000040", detail: "" }];
+    bpBackups = [{ target_path: "D:\\game\\eboot.bin",
+      backup_path: "D:\\game\\eboot.bin.bak.zip", restorable: true }];
+    updateBackportBackups(1);
+    renderBackport();
+    $("bp-summary").textContent = t("bp.summary", {
+      eligible: 1, signed: 0, skipped: 0
+    });
+    return;
+  }
+  const r = await b.backport_scan(folder);
+  if (!r.ok) { log("bp-log", t("err.prefix") + r.error, "err"); return; }
+  bpItems = r.items || [];
+  bpBackups = r.backups || [];
+  renderBackport();
+  updateBackportBackups(r.restorable || 0);
+  $("bp-summary").textContent = t("bp.summary", r);
+  $("bp-apply").disabled = !r.eligible;
+  log("bp-log", t("bp.summary", r));
+}
+
+function updateBackportBackups(restorable) {
+  $("bp-restore").disabled = !restorable;
+  $("bp-backup-summary").textContent = restorable
+    ? t("bp.restore_found", { count: restorable }) : t("bp.restore_none");
+}
+
+function renderBackport() {
+  $("bp-list").innerHTML = bpItems.map(item => {
+    const name = String(item.path || "").split(/[\\/]/).pop();
+    const state = t("bp.st." + item.status);
+    const sdk = item.sdk_band ? `${item.sdk_band}.xx · ${item.ps5_sdk_hex || ""}` : "—";
+    const result = item.result ? ` · ${item.result}` : "";
+    return `<tr><td title="${esc(item.path)}">${esc(name)}</td>` +
+      `<td>${esc(state + result)}</td><td class="num">${esc(sdk)}</td>` +
+      `<td class="dim">${esc(item.detail || "")}</td></tr>`;
+  }).join("");
+}
+
 /* ── SETTINGS page ────────────────────────────────────── */
 async function loadSettings() {
   const b = bridge(); if (!b) return;
   const s = await b.get_settings();
   $("set-output").value = s.output_dir || "";
   $("set-libdirs").value = (s.library_dirs || []).join(";");
+  const scale = applyUiScale(s.ui_scale == null ? 1 : s.ui_scale);
+  $("set-scale").value = String(scale);
   $("set-cluster").value = String(s.cluster_size == null ? 65536 : s.cluster_size);
   $("set-level").value = s.pfs_level || 9;
   $("set-level-val").textContent = s.pfs_level || 9;
@@ -784,7 +1257,14 @@ async function loadSettings() {
   $("set-ffblock").value = s.ffpkg_block || 65536;
   $("set-fffrag").value = s.ffpkg_frag || 65536;
   $("set-ps5path").value = s.ps5_ftp_path || "";
-  $("set-verify").classList.toggle("on", s.verify_after_build !== false);
+  $("set-ps5fw").value = s.ps5_firmware || "";
+  $("bp-dir").value = s.backport_dir || "";
+  const suggested = s.backport_target_recommended ||
+    firmwareSdkTarget(s.ps5_firmware);
+  $("bp-target").value = String(suggested || s.backport_target || 5);
+  syncBackportTargetFromFirmware(s.ps5_firmware, suggested);
+  S.verify = s.verify_after_build !== false;
+  $("opt-verify").classList.toggle("on", S.verify);
   $("set-compress").classList.toggle("on", s.pfs_compress !== false);
   // seed the working pages from saved defaults
   if (s.output_dir && !$("output").value) $("output").value = s.output_dir;
@@ -794,26 +1274,39 @@ async function loadSettings() {
   if (s.ps5_ftp_port) $("ftp-port").value = s.ps5_ftp_port;
   if (s.ps5_klog_port) $("kl-port").value = s.ps5_klog_port;
   if (s.ps5_payload_port) $("pl-port").value = s.ps5_payload_port;
+  $("cat-fw").value = s.ps5_firmware || "";
   if (s.payload_dir) { $("pl-dir").value = s.payload_dir; scanPayloads(); }
 }
-$("set-verify").onclick = () => $("set-verify").classList.toggle("on");
 $("set-compress").onclick = () => $("set-compress").classList.toggle("on");
+$("set-scale").onchange = async () => {
+  const scale = applyUiScale($("set-scale").value);
+  const b = bridge();
+  if (b) await b.save_settings({ ui_scale: scale });
+};
+$("set-ps5fw").oninput = () =>
+  syncBackportTargetFromFirmware($("set-ps5fw").value.trim());
 $("set-save").onclick = async () => {
   const b = bridge(); if (!b) return;
+  const firmware = $("set-ps5fw").value.trim();
+  syncBackportTargetFromFirmware(firmware);
   await b.save_settings({
     output_dir: $("set-output").value.trim(),
     library_dirs: $("set-libdirs").value.split(";").map(s => s.trim()).filter(Boolean),
+    ui_scale: +$("set-scale").value,
     cluster_size: +$("set-cluster").value,
-    verify_after_build: $("set-verify").classList.contains("on"),
+    verify_after_build: S.verify,
     pfs_compress: $("set-compress").classList.contains("on"),
     pfs_level: +$("set-level").value,
     pfs_threads: +$("set-threads").value,
     ffpkg_block: +$("set-ffblock").value,
     ffpkg_frag: +$("set-fffrag").value,
     ps5_host: $("set-ps5host").value.trim(),
+    ps5_firmware: firmware,
     ps5_ftp_path: $("set-ps5path").value.trim(),
     lang,
   });
+  $("cat-fw").value = firmware;
+  await loadCatalog();
   log("log", t("msg.saved"), "ok");
   loadSettings();
 };
@@ -879,7 +1372,7 @@ async function init() {
       const env = await b.environment();
       $("pill-version").querySelector("span:last-child").textContent = "v" + env.version;
       $("about-version").textContent = "v" + env.version;
-      $("foot-left").textContent = `exFAT FORGE v${env.version} // GPL-3.0`;
+      $("foot-left").textContent = `v${env.version}`;
       const ff = env.ffpkg || {};
       setPill("pill-ffpkg", ff.available, ff.available ? "ffpkg · " + ff.detail : t("msg.ffpkg_missing"));
       $("set-ffpkg-status").textContent = ff.detail || "";
@@ -894,7 +1387,9 @@ async function init() {
     $("demo-badge").style.display = "";
     lang = (navigator.language || "en").startsWith("zh") ? "zh" : "en";
     setPill("pill-ffpkg", true, "ffpkg · demo");
-    $("pill-version").querySelector("span:last-child").textContent = "v0.3.0";
+    $("pill-version").querySelector("span:last-child").textContent = "v" + APP_VERSION;
+    $("about-version").textContent = "v" + APP_VERSION;
+    $("foot-left").textContent = "v" + APP_VERSION;
     renderLibrary(demoLibrary());
     plItems = demoPayloads(); renderPayloads();
     lastHistory = demoHistory();

@@ -67,12 +67,18 @@ def test_every_download_link_is_https_and_upstream() -> None:
         assert "/releases/download/" in e.binary_url, e.id
 
 
-def test_catalogue_ships_no_binary_content() -> None:
+def test_catalogue_json_contains_metadata_not_embedded_blobs() -> None:
     doc = json.loads(
         Path(catalog._data_file()).read_text(encoding="utf-8"))
     blob = json.dumps(doc)
     assert "base64" not in blob.lower()
     assert doc["metadata_source"]
+
+
+def test_bundled_payload_manifest_and_hashes_are_valid() -> None:
+    assert catalog.validate_bundled() == 18
+    bundled = [e for e in catalog.as_dicts() if e["bundled"]]
+    assert len(bundled) == 18
 
 
 def test_find_and_unknown_id() -> None:
@@ -87,6 +93,39 @@ def test_firmware_prefixes_are_matched() -> None:
     assert not catalog.matches_firmware(bye, "5.02")
     # no firmware list means "all"
     assert catalog.matches_firmware(_entry("https://x/y"), "9.99")
+
+    remote_play = catalog.find("rp-get-pin")
+    assert catalog.matches_firmware(remote_play, "5.50")
+    assert catalog.matches_firmware(remote_play, "6.50")
+    assert catalog.matches_firmware(remote_play, "7.61")
+    assert not catalog.matches_firmware(remote_play, "8.00")
+
+
+def test_firmware_ranges_are_matched() -> None:
+    full = catalog.find("kstuff")
+    lite = catalog.find("kstuff-lite")
+    assert catalog.matches_firmware(full, "3.00")
+    assert catalog.matches_firmware(full, "10.01")
+    assert not catalog.matches_firmware(full, "10.20")
+    assert catalog.matches_firmware(lite, "12.70")
+    assert not catalog.matches_firmware(lite, "12.71")
+    assert not catalog.matches_firmware(lite, "not-a-version")
+    pork = catalog.find("backpork")
+    assert catalog.matches_firmware(pork, "12.00")
+    assert not catalog.matches_firmware(pork, "12.02")
+
+
+def test_install_bundled_verifies_and_is_idempotent(tmp_path: Path) -> None:
+    entry = catalog.find("ftpsrv-ps5")
+    first = catalog.install_bundled(entry, tmp_path)
+    assert first.is_file() and first.read_bytes().startswith(b"\x7fELF")
+    assert catalog.install_bundled(entry, tmp_path) == first
+    first.write_bytes(b"not the bundled payload")
+    with pytest.raises(catalog.CatalogError, match="different content"):
+        catalog.install_bundled(entry, tmp_path)
+    restored = catalog.install_bundled(entry, tmp_path, overwrite=True)
+    assert restored.read_bytes().startswith(b"\x7fELF")
+    assert not list(tmp_path.glob("*.part"))
 
 
 # ── downloading ───────────────────────────────────────────────────

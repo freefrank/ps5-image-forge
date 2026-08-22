@@ -25,7 +25,7 @@ def _selftest() -> int:
     import tempfile
     from pathlib import Path
 
-    from . import catalog, core
+    from . import backport, catalog, core
 
     with tempfile.TemporaryDirectory(prefix="forge_selftest_") as td:
         tmp = Path(td)
@@ -42,6 +42,9 @@ def _selftest() -> int:
         assert pfs.stat().st_size > 0
     # data files must survive freezing, not just import
     assert catalog.load(), "payload catalog missing from the bundle"
+    assert catalog.validate_bundled() >= 1, "bundled payloads missing from the bundle"
+    assert hasattr(backport.make_fself, "SignedElfFile"), \
+        "PS5 fake-SELF helper missing from the bundle"
     return 0
 
 

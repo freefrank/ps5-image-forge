@@ -146,3 +146,37 @@ def test_ftp_methods_require_connection() -> None:
     client = ps5.PS5Ftp("127.0.0.1", 2121)
     with pytest.raises(ps5.PS5Error, match="not connected"):
         client.listdir("/")
+
+
+def test_ftp_list_changes_directory_before_argumentless_mlsd() -> None:
+    """ftpsrv ignores MLSD's path argument, so navigation must use CWD."""
+    class FakeFtp:
+        def __init__(self) -> None:
+            self.current = "/"
+            self.calls: list[tuple] = []
+
+        def cwd(self, path: str) -> None:
+            self.calls.append(("cwd", path))
+            self.current = path
+
+        def pwd(self) -> str:
+            self.calls.append(("pwd",))
+            return self.current
+
+        def mlsd(self, *args):
+            self.calls.append(("mlsd", args))
+            assert not args
+            return iter([
+                (f"{self.current}/games", {"type": "dir"}),
+                (f"{self.current}/readme.txt", {"type": "file", "size": "12"}),
+            ])
+
+    fake = FakeFtp()
+    client = ps5.PS5Ftp("127.0.0.1", 2121)
+    client._ftp = fake  # type: ignore[assignment]
+
+    entries = client.listdir("/mnt")
+
+    assert fake.calls[:3] == [("cwd", "/mnt"), ("pwd",), ("mlsd", ())]
+    assert [(e.name, e.is_dir, e.size) for e in entries] == [
+        ("games", True, 0), ("readme.txt", False, 12)]

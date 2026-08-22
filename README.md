@@ -27,6 +27,7 @@ PS5 游戏 dump 镜像工具 —— exFAT Image Builder 的现代化免挂载重
 | **FTP** | 连接 PS5、浏览远程目录、上传镜像 |
 | **内核日志** | 实时接收 PS5 内核日志 |
 | **Payload** | Payload 库：扫描目录、自动读取 ELF 信息与能力、可写备注、发送到 PS5；内置目录可按需从项目 release 下载 |
+| **Backport** | 自动还原 SELF/FSELF、降低 SDK、fake-sign 并验证后写回；也支持裸 ELF，修改前默认备份 |
 | **设置** | 路径、簇大小、压缩、ffpkg 参数、PS5 连接信息 |
 
 界面为赛博朋克风格（霓虹面板、扫描线、流光进度条），中/英双语实时切换。
@@ -49,10 +50,10 @@ pip install -e .
 
 ```bash
 pip install pyinstaller
-python -m PyInstaller --onefile --windowed --name exFAT-Forge --collect-submodules mkpfs --collect-all webview --add-data "src/exfat_forge/webui;exfat_forge/webui" --add-data "src/exfat_forge/payload_catalog.json;exfat_forge" --add-data "vendor/ufs2tool;ufs2tool" entry.py
+python -m PyInstaller --onefile --windowed --name exFAT-Forge --collect-submodules mkpfs --collect-all webview --add-data "src/exfat_forge/webui;exfat_forge/webui" --add-data "src/exfat_forge/payload_catalog.json;exfat_forge" --add-data "vendor/payloads;exfat_forge/bundled_payloads" --add-data "vendor/ufs2tool;ufs2tool" entry.py
 ```
 
-产出 `dist/exFAT-Forge.exe`（约 18 MB）：双击进 GUI；带参数即 CLI；`--selftest` 自检。
+产出单文件 `exFAT-Forge.exe`（当前约 32 MB，含 18 个 payload）：双击进 GUI；带参数即 CLI；`--selftest` 自检。
 
 ## CLI
 
@@ -77,10 +78,10 @@ CLI 消息跟随系统语言，`EXFAT_FORGE_LANG=en|zh` 可覆盖。
 pytest tests/
 ```
 
-100 个测试覆盖：镜像构建/校验/腐蚀检测/逐字节解包往返、三格式流水线、
+115 个测试覆盖：镜像构建/校验/腐蚀检测/逐字节解包往返、三格式流水线、
 设置与历史持久化（含损坏文件与旧版本字段）、库扫描、payload ELF 解析
 （含真实 PS5 payload）、PS5 协议与端口扫描（本地 socket 模拟真实线路行为）、payload 目录与下载、
-以及 GUI 的完整后端接口（无窗口驱动）。
+Backport 扫描/降级/备份与签名文件保护，以及 GUI 的完整后端接口（无窗口驱动）。
 
 UI 可直接在浏览器里开发：
 
@@ -103,13 +104,26 @@ python -m http.server 8899 -d src/exfat_forge/webui
 
 ### 内置目录
 
-Payload 页的"目录"面板内置 19 个常用 payload 的**元数据**（名称、作者、版本、
-适用固件、说明、项目地址）—— **不打包任何二进制**。点"获取"会从**项目自己的
-GitHub / Gitea release** 下载到你选的 payload 目录，下载中可取消，
-先写 `.part` 成功后改名。少数项目只发布 release 页或 CI 产物，这类条目显示
-"打开页面"而不是"获取"，不会给一个必然失败的下载按钮。
+Payload 页内置 18 个常用 payload 二进制及完整目录元数据（名称、作者、版本、
+适用固件、说明、项目地址）。用户手动选择 PS5 固件后默认只显示兼容项；点“使用”时
+先按随包清单校验 SHA-256，再原子释放到 `%APPDATA%/exfat-forge/payloads`（或用户选定的
+payload 目录）。每个二进制都固定到目录标注的项目上游 release URL，来源清单位于
+`vendor/payloads/manifest.json`。无法直接取得的少数条目仍显示“打开页面”。
 
 链接有效性用 `python tools/check_catalog_links.py` 手动复查（需要联网，不进测试套件）。
+
+## BackPork 降级
+
+Backport 页可以扫描游戏目录中的 `.bin` / `.elf` / `.self` / `.prx` / `.sprx`，读取
+PS5 SDK 要求。裸 ELF 会直接修改；SELF/FSELF 会自动还原为 ELF、把 SDK 降到用户选择的
+版本（1.00–10.00），再生成 fake-signed SELF。默认先生成并校验 `.bak.zip`，通过“重新还原并检查 SDK”
+验证后才原子替换原文件。不能可靠还原的容器会报告失败并保持原件不变。
+
+目标 SDK 会跟随设置中的 PS5 固件自动建议：例如固件 5.50 对应 5.xx、9.60 对应 9.xx；
+固件 11.xx 及以上会建议当前补丁表支持的最高值 10.xx。用户仍可在执行前手动改选。
+
+Payload 页同时内置 BestPig 官方 BackPork 0.1 payload，适用于最高 12.00 的后台 unionfs
+覆盖流程。自动 Backport 负责准备 fake-signed 降级文件，BackPork payload 负责在主机端提供覆盖层。
 
 ## 未在真机验证
 
@@ -125,3 +139,6 @@ PS5 网络功能（FTP / 内核日志 / Payload）的协议逻辑用本地 socke
 GPL-3.0（跟随 [MkPFS](https://github.com/PSBrew/MkPFS) 上游）。
 `vendor/ufs2tool/` 内的 UFS2Tool 程序集来自 exFAT Image Builder v4.0.2，
 详见该目录下的 `PROVENANCE.md`。
+Auto Backport 使用了 [ps5-payload-dev/sdk](https://github.com/ps5-payload-dev/sdk)
+中未修改的 `make_fself.py`；出处、哈希及 GPL-3.0-or-later 文本位于
+`src/exfat_forge/_vendor/`。

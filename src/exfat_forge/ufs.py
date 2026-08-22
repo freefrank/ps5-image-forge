@@ -88,6 +88,9 @@ def _run(args: list[str], progress: ProgressFn | None = None,
     tool = _tool_dir()
     cmd = ["dotnet", str(tool / "UFS2Tool.dll"), *args]
     lines: list[str] = []
+    if progress:
+        progress(ProgressEvent(phase, 0, 0,
+                               "$ " + subprocess.list2cmdline(cmd)))
     proc = subprocess.Popen(
         cmd, cwd=str(tool), stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
         text=True, encoding="utf-8", errors="replace", bufsize=1,

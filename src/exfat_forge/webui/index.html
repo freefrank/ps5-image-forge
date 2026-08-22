@@ -6,6 +6,7 @@
 <link rel="stylesheet" href="app.css">
 </head>
 <body>
+<div id="ui-root">
 <div id="sweep"></div>
 
 <div id="titlebar">
@@ -28,6 +29,7 @@
     <div class="grp" data-i18n="nav.grp.build">BUILD</div>
     <div class="nav on" data-page="home"><span class="ico">◈</span><span data-i18n="nav.home">Home</span></div>
     <div class="nav" data-page="build"><span class="ico">⚒</span><span data-i18n="nav.build">Build</span></div>
+    <div class="nav" data-page="backport"><span class="ico">↧</span><span data-i18n="nav.backport">Backport</span></div>
     <div class="nav" data-page="extract"><span class="ico">⇱</span><span data-i18n="nav.extract">Extract</span></div>
     <div class="nav" data-page="inspect"><span class="ico">⌕</span><span data-i18n="nav.inspect">Inspect</span></div>
 
@@ -37,9 +39,9 @@
 
     <div class="grp" data-i18n="nav.grp.ps5">PS5</div>
     <div class="nav" data-page="ps5"><span class="ico">◎</span><span data-i18n="nav.ps5">PS5 Manager</span></div>
+    <div class="nav" data-page="payload"><span class="ico">➤</span><span data-i18n="nav.payload">Payloads</span></div>
     <div class="nav" data-page="ftp"><span class="ico">⇅</span><span data-i18n="nav.ftp">FTP</span></div>
     <div class="nav" data-page="klog"><span class="ico">≣</span><span data-i18n="nav.klog">Kernel Log</span></div>
-    <div class="nav" data-page="payload"><span class="ico">➤</span><span data-i18n="nav.payload">Payloads</span></div>
 
     <div class="grp" data-i18n="nav.grp.system">SYSTEM</div>
     <div class="nav" data-page="settings"><span class="ico">⚙</span><span data-i18n="nav.settings">Settings</span></div>
@@ -52,10 +54,8 @@
     <section class="page on" id="page-home">
       <div class="panel">
         <span class="tag">STATUS</span>
-        <h2 data-i18n="home.title">SYSTEM STATUS</h2>
+        <h2 data-i18n="home.title">ENVIRONMENT</h2>
         <div class="row" style="gap:14px;flex-wrap:wrap">
-          <span class="pill good"><span class="dot"></span><span data-i18n="home.nomount">No mounting</span></span>
-          <span class="pill good"><span class="dot"></span><span data-i18n="home.noadmin">No admin</span></span>
           <span class="pill" id="pill-ffpkg"><span class="dot"></span><span>ffpkg</span></span>
           <span class="pill" id="pill-version"><span class="dot"></span><span>v—</span></span>
         </div>
@@ -68,13 +68,13 @@
             <div class="ci">⚒</div><div class="ct" data-i18n="home.c1t">BUILD IMAGE</div>
             <div class="cd" data-i18n="home.c1d">Turn a game dump into exFAT, ffpkg or PFS</div>
           </div>
-          <div class="card" data-goto="extract">
-            <div class="ci">⇱</div><div class="ct" data-i18n="home.c2t">EXTRACT</div>
-            <div class="cd" data-i18n="home.c2d">Unpack any image back to a folder</div>
+          <div class="card" data-goto="backport">
+            <div class="ci">↧</div><div class="ct" data-i18n="home.c2t">AUTO BACKPORT</div>
+            <div class="cd" data-i18n="home.c2d">Match game SDK to the selected PS5 firmware</div>
           </div>
-          <div class="card" data-goto="library">
-            <div class="ci">▤</div><div class="ct" data-i18n="home.c3t">LIBRARY</div>
-            <div class="cd" data-i18n="home.c3d">Browse dumps and built images</div>
+          <div class="card" data-goto="payload">
+            <div class="ci">➤</div><div class="ct" data-i18n="home.c3t">PAYLOADS</div>
+            <div class="cd" data-i18n="home.c3d">Choose a compatible built-in payload and send it</div>
           </div>
           <div class="card" data-goto="ftp">
             <div class="ci">⇅</div><div class="ct" data-i18n="home.c4t">SEND TO PS5</div>
@@ -113,23 +113,26 @@
           <div class="mode" data-mode="ffpkg">FFPKG<small data-i18n="mode.ffpkg.sub">UFS · NEEDS .NET</small></div>
           <div class="mode" data-mode="pfs">PFS<small data-i18n="mode.pfs.sub">.FFPFSC PACKAGE</small></div>
         </div>
-        <div class="opts">
-          <span class="chip on" id="opt-verify"><span class="box"></span><span data-i18n="opt.verify">VERIFY</span></span>
-          <span class="chip on" id="opt-compress"><span class="box"></span><span data-i18n="opt.compress">COMPRESS</span></span>
-          <span class="lvl" id="lvl-wrap">
-            <span data-i18n="opt.level">LVL</span>
-            <input type="range" id="level" min="1" max="9" value="9">
-            <span class="val" id="level-val">9</span>
-          </span>
-          <span class="chip" id="opt-keep"><span class="box"></span><span data-i18n="opt.keep">KEEP INTERMEDIATE</span></span>
-        </div>
-        <div class="opts" id="inter-wrap">
-          <span style="color:var(--text-dim);font-size:11px" data-i18n="opt.intermediate">INTERMEDIATE</span>
-          <select id="intermediate" style="flex:0 0 150px">
-            <option value="exfat">exFAT</option>
-            <option value="ffpkg">ffpkg</option>
-          </select>
-        </div>
+        <details class="advanced">
+          <summary data-i18n="build.advanced">Advanced options</summary>
+          <div class="opts">
+            <span class="chip on" id="opt-verify"><span class="box"></span><span data-i18n="opt.verify">VERIFY</span></span>
+            <span class="chip on" id="opt-compress"><span class="box"></span><span data-i18n="opt.compress">COMPRESS</span></span>
+            <span class="lvl" id="lvl-wrap">
+              <span data-i18n="opt.level">LVL</span>
+              <input type="range" id="level" min="1" max="9" value="9">
+              <span class="val" id="level-val">9</span>
+            </span>
+            <span class="chip" id="opt-keep"><span class="box"></span><span data-i18n="opt.keep">KEEP INTERMEDIATE</span></span>
+          </div>
+          <div class="opts" id="inter-wrap">
+            <span style="color:var(--text-dim);font-size:11px" data-i18n="opt.intermediate">INTERMEDIATE</span>
+            <select id="intermediate" style="flex:0 0 150px">
+              <option value="exfat">exFAT</option>
+              <option value="ffpkg">ffpkg</option>
+            </select>
+          </div>
+        </details>
       </div>
 
       <div class="panel">
@@ -142,13 +145,10 @@
         <div class="bar idle"><div class="fill" id="fill"></div></div>
       </div>
 
-      <div class="panel">
-        <span class="tag" data-i18n="tag.console">CONSOLE</span>
-        <div class="logbox" id="log"></div>
-      </div>
+      <div id="log" hidden aria-hidden="true"></div>
 
       <div class="actions">
-        <button id="btn-abort" class="danger" disabled data-i18n="btn.abort">ABORT</button>
+        <button id="btn-abort" class="danger contextual" disabled data-i18n="btn.abort">CANCEL</button>
         <button id="btn-run" class="primary" data-i18n="btn.run">EXECUTE</button>
       </div>
     </section>
@@ -177,7 +177,7 @@
         <div class="logbox" id="ex-log"></div>
       </div>
       <div class="actions">
-        <button id="ex-abort" class="danger" disabled data-i18n="btn.abort">ABORT</button>
+        <button id="ex-abort" class="danger contextual" disabled data-i18n="btn.abort">CANCEL</button>
         <button id="ex-run" class="primary" data-i18n="btn.extract">EXTRACT</button>
       </div>
     </section>
@@ -215,7 +215,7 @@
         <div class="panel">
           <span class="tag">DUMPS</span>
           <h2 data-i18n="library.dumps">SOURCE DUMPS</h2>
-          <div style="max-height:290px;overflow-y:auto">
+          <div class="table-scroll" style="max-height:290px">
             <table><thead><tr>
               <th data-i18n="col.title">TITLE</th><th data-i18n="col.id">ID</th>
               <th class="num" data-i18n="col.files">FILES</th><th class="num" data-i18n="col.size">SIZE</th>
@@ -226,7 +226,7 @@
         <div class="panel">
           <span class="tag">IMAGES</span>
           <h2 data-i18n="library.images">BUILT IMAGES</h2>
-          <div style="max-height:290px;overflow-y:auto">
+          <div class="table-scroll" style="max-height:290px">
             <table><thead><tr>
               <th data-i18n="col.name">NAME</th><th data-i18n="col.fmt">FMT</th>
               <th class="num" data-i18n="col.size">SIZE</th><th data-i18n="col.modified">MODIFIED</th>
@@ -246,7 +246,7 @@
       <div class="panel">
         <span class="tag">LOG</span>
         <h2 data-i18n="history.title">BUILD HISTORY</h2>
-        <div style="max-height:400px;overflow-y:auto">
+        <div class="table-scroll" style="max-height:400px">
           <table><thead><tr>
             <th data-i18n="col.when">WHEN</th><th data-i18n="col.title">TITLE</th>
             <th data-i18n="col.fmt">FMT</th><th class="num" data-i18n="col.size">SIZE</th>
@@ -270,12 +270,15 @@
           <label class="field" data-i18n="lbl.host">PS5 IP</label>
           <input type="text" id="ps5-host" spellcheck="false" placeholder="192.168.1.42">
           <button id="ps5-scan" data-i18n="btn.scan">SCAN</button>
-          <button id="ps5-stop" class="danger" disabled data-i18n="btn.stop">STOP</button>
+          <button id="ps5-stop" class="danger contextual" disabled data-i18n="btn.stop">STOP</button>
         </div>
-        <div class="row">
-          <label class="field" data-i18n="lbl.ports">PORTS</label>
-          <input type="text" id="ps5-ports" spellcheck="false" data-i18n-ph="ph.ports" placeholder="blank = all known ports">
-        </div>
+        <details class="advanced compact-advanced">
+          <summary data-i18n="ps5.custom_ports">Custom ports</summary>
+          <div class="row">
+            <label class="field" data-i18n="lbl.ports">PORTS</label>
+            <input type="text" id="ps5-ports" spellcheck="false" data-i18n-ph="ph.ports" placeholder="blank = all known ports">
+          </div>
+        </details>
         <div class="row">
           <span class="pill" id="ps5-status"><span class="dot"></span><span data-i18n="ps5.idle">Not scanned</span></span>
           <span style="margin-left:12px;color:var(--text-dim);font-size:10.5px" data-i18n="ps5.hint">Probes only the address you type — no network discovery.</span>
@@ -284,7 +287,7 @@
       </div>
       <div class="panel">
         <span class="tag" data-i18n="tag.services">SERVICES</span>
-        <div style="max-height:330px;overflow-y:auto">
+        <div class="table-scroll" style="max-height:330px">
           <table><thead><tr>
             <th class="num" data-i18n="col.port">PORT</th>
             <th data-i18n="col.service">SERVICE</th>
@@ -310,19 +313,12 @@
         <div class="row">
           <label class="field" data-i18n="lbl.remote">REMOTE</label>
           <input type="text" id="ftp-path" value="/data/etaHEN/games/" spellcheck="false">
+          <button id="ftp-up" disabled data-i18n="btn.up" data-i18n-title="ftp.up_title">UP</button>
           <button id="ftp-list" data-i18n="btn.list">LIST</button>
         </div>
         <div class="row"><span class="pill" id="ftp-status"><span class="dot"></span><span data-i18n="ftp.idle">Not connected</span></span></div>
       </div>
       <div class="split">
-        <div class="panel">
-          <span class="tag">REMOTE</span>
-          <div style="max-height:230px;overflow-y:auto">
-            <table><thead><tr><th data-i18n="col.name">NAME</th><th class="num" data-i18n="col.size">SIZE</th></tr></thead>
-            <tbody id="ftp-entries"></tbody></table>
-            <div class="empty" id="ftp-empty" data-i18n="empty.remote">Not listed</div>
-          </div>
-        </div>
         <div class="panel">
           <span class="tag">UPLOAD</span>
           <div class="row">
@@ -335,8 +331,16 @@
           </div>
           <div class="bar idle"><div class="fill" id="ftp-fill"></div></div>
           <div class="actions" style="margin-top:9px">
-            <button id="ftp-abort" class="danger" disabled data-i18n="btn.abort">ABORT</button>
+            <button id="ftp-abort" class="danger contextual" disabled data-i18n="btn.abort">CANCEL</button>
             <button id="ftp-upload" data-i18n="btn.upload">UPLOAD</button>
+          </div>
+        </div>
+        <div class="panel">
+          <span class="tag">REMOTE</span>
+          <div class="table-scroll" style="max-height:230px">
+            <table><thead><tr><th data-i18n="col.name">NAME</th><th class="num" data-i18n="col.size">SIZE</th></tr></thead>
+            <tbody id="ftp-entries" aria-live="polite"></tbody></table>
+            <div class="empty" id="ftp-empty" data-i18n="empty.remote">Not listed</div>
           </div>
         </div>
       </div>
@@ -356,7 +360,7 @@
           <label class="field" style="width:44px" data-i18n="lbl.port">PORT</label>
           <input type="number" id="kl-port" value="3232">
           <button id="kl-start" data-i18n="btn.connect">CONNECT</button>
-          <button id="kl-stop" class="danger" disabled data-i18n="btn.disconnect">STOP</button>
+          <button id="kl-stop" class="danger contextual" disabled data-i18n="btn.disconnect">STOP</button>
           <button id="kl-clear" data-i18n="btn.clear">CLEAR</button>
         </div>
         <div class="row">
@@ -372,21 +376,24 @@
 
     <!-- ── PAYLOAD ──────────────────────────────────────── -->
     <section class="page" id="page-payload">
-      <div class="panel">
-        <span class="tag" data-i18n="tag.library">LIBRARY</span>
-        <div class="row">
-          <label class="field" data-i18n="lbl.folder">FOLDER</label>
-          <input type="text" id="pl-dir" spellcheck="false">
-          <button id="pl-pick-dir" data-i18n="btn.browse2">DIR…</button>
-          <button id="pl-scan" data-i18n="btn.scan">SCAN</button>
-        </div>
-        <div class="hint" data-i18n="payload.libhint">Put your .elf / .bin payloads in one folder. Details are read from each file; a matching .txt / .md / .json is used as its description.</div>
+      <div class="panel payload-folder-panel">
+        <span class="tag" data-i18n="tag.library">LOCAL</span>
+        <details class="advanced" style="margin-top:0">
+          <summary data-i18n="payload.custom">Custom payload folder</summary>
+          <div class="row">
+            <label class="field" data-i18n="lbl.folder">FOLDER</label>
+            <input type="text" id="pl-dir" spellcheck="false">
+            <button id="pl-pick-dir" data-i18n="btn.browse2">BROWSE…</button>
+            <button id="pl-scan" data-i18n="btn.scan">SCAN</button>
+          </div>
+          <div class="hint" data-i18n="payload.libhint">Put your .elf / .bin payloads in one folder. Details are read from each file; a matching .txt / .md / .json is used as its description.</div>
+        </details>
       </div>
 
-      <div class="split" style="grid-template-columns:1fr 1.15fr">
+      <div class="split payload-local-panel" style="grid-template-columns:1fr 1.15fr">
         <div class="panel">
           <span class="tag">PAYLOADS</span>
-          <div style="max-height:270px;overflow-y:auto">
+          <div class="table-scroll" style="max-height:270px">
             <table><thead><tr>
               <th data-i18n="col.name">NAME</th><th data-i18n="col.caps">CAPABILITIES</th>
               <th class="num" data-i18n="col.size">SIZE</th>
@@ -401,18 +408,31 @@
         </div>
       </div>
 
-      <div class="panel">
+      <div class="panel payload-catalog-panel">
         <span class="tag" data-i18n="tag.catalog">CATALOG</span>
         <div class="row">
+          <label class="field" data-i18n="lbl.firmware">FIRMWARE</label>
+          <input type="text" id="cat-fw" list="fw-versions" spellcheck="false" placeholder="5.50">
+          <datalist id="fw-versions">
+            <option value="1.00"><option value="1.01"><option value="1.02"><option value="1.12"><option value="1.14">
+            <option value="2.00"><option value="2.20"><option value="2.25"><option value="2.26"><option value="2.30"><option value="2.50"><option value="2.70">
+            <option value="3.00"><option value="3.20"><option value="3.21">
+            <option value="4.02"><option value="4.03"><option value="4.50"><option value="4.51">
+            <option value="5.00"><option value="5.02"><option value="5.10"><option value="5.50">
+            <option value="7.00"><option value="7.20"><option value="7.40"><option value="7.60"><option value="7.61">
+            <option value="8.00"><option value="8.20"><option value="8.40"><option value="8.60">
+            <option value="9.00"><option value="9.05"><option value="9.20"><option value="9.40"><option value="9.60">
+            <option value="10.00"><option value="10.01"><option value="10.20"><option value="10.40"><option value="10.60">
+            <option value="11.00"><option value="11.20"><option value="11.40"><option value="11.60">
+            <option value="12.00"><option value="12.02"><option value="12.20"><option value="12.40"><option value="12.50"><option value="12.60"><option value="12.70">
+          </datalist>
           <input type="text" id="cat-filter" spellcheck="false" data-i18n-ph="ph.filter" placeholder="filter by name, author or firmware">
-          <button id="cat-load" data-i18n="btn.refresh">REFRESH</button>
-          <button id="cat-cancel" class="danger" disabled data-i18n="btn.stop">STOP</button>
+          <button id="cat-cancel" class="danger contextual" disabled data-i18n="btn.stop">STOP</button>
         </div>
-        <div class="hint" data-i18n="payload.cathint">Metadata only — nothing is bundled. Fetching a payload downloads it from the project's own release into your payload folder.</div>
-        <div style="max-height:250px;overflow-y:auto;margin-top:8px">
+        <div class="hint" data-i18n="payload.cathint">Common payloads are bundled and SHA-256 verified. Select your firmware to show compatible entries.</div>
+        <div class="table-scroll" style="max-height:250px;margin-top:8px">
           <table><thead><tr>
             <th data-i18n="col.name">NAME</th>
-            <th data-i18n="col.author">AUTHOR</th>
             <th data-i18n="col.version">VER</th>
             <th data-i18n="col.fw">FW</th>
             <th data-i18n="col.get">GET</th>
@@ -422,7 +442,7 @@
         <div class="hint" id="cat-source" style="margin-top:6px"></div>
       </div>
 
-      <div class="panel">
+      <div class="panel payload-send-panel">
         <span class="tag" data-i18n="tag.connection">SEND</span>
         <div class="row">
           <label class="field" data-i18n="lbl.host">PS5 IP</label>
@@ -434,9 +454,54 @@
         <div class="hint" data-i18n="payload.hint">The PS5 must be listening (etaHEN / GoldHEN loader) before sending.</div>
       </div>
 
-      <div class="panel">
+      <div class="panel payload-console-panel">
         <span class="tag" data-i18n="tag.console">CONSOLE</span>
         <div class="logbox" id="pl-log" style="height:110px"></div>
+      </div>
+    </section>
+
+    <!-- ── BACKPORT ─────────────────────────────────────── -->
+    <section class="page" id="page-backport">
+      <div class="panel">
+        <span class="tag" data-i18n="bp.tag">SDK DOWNGRADE</span>
+        <h2 data-i18n="bp.title">BACKPORK PREPARATION</h2>
+        <div class="row">
+          <label class="field" data-i18n="bp.source">SOURCE</label>
+          <input type="text" id="bp-dir" spellcheck="false" data-i18n-ph="bp.source.ph" placeholder="Game or backport-files folder">
+          <button id="bp-pick" data-i18n="btn.browse2">DIR…</button>
+          <button id="bp-scan" data-i18n="btn.scan">SCAN</button>
+        </div>
+        <div class="row">
+          <label class="field" data-i18n="bp.target">TARGET SDK</label>
+          <select id="bp-target">
+            <option value="1">1.xx</option><option value="2">2.xx</option>
+            <option value="3">3.xx</option><option value="4">4.xx</option>
+            <option value="5" selected>5.xx</option><option value="6">6.xx</option>
+            <option value="7">7.xx</option><option value="8">8.xx</option>
+            <option value="9">9.xx</option><option value="10">10.xx</option>
+          </select>
+          <span class="dim" id="bp-recommend"></span>
+          <button id="bp-restore" disabled data-i18n="bp.restore">RESTORE ORIGINAL</button>
+          <button id="bp-apply" class="primary" disabled data-i18n="bp.apply">APPLY AUTO BACKPORT</button>
+        </div>
+        <div class="hint" id="bp-backup-summary" data-i18n="bp.restore_none">No original backups found.</div>
+        <div class="hint" data-i18n="bp.hint">Restore SELF/FSELF to ELF, patch SDK, fake-sign, verify and atomically replace.</div>
+      </div>
+
+      <div class="panel">
+        <span class="tag" data-i18n="bp.files">FILES</span>
+        <div class="hint" id="bp-summary" data-i18n="bp.empty">Select a folder and scan it first.</div>
+        <div class="table-scroll" style="max-height:300px;margin-top:8px">
+          <table><thead><tr>
+            <th data-i18n="col.name">NAME</th><th data-i18n="bp.status">STATUS</th>
+            <th data-i18n="bp.current">CURRENT SDK</th><th data-i18n="col.note">NOTE</th>
+          </tr></thead><tbody id="bp-list"></tbody></table>
+        </div>
+      </div>
+
+      <div class="panel">
+        <span class="tag" data-i18n="tag.console">CONSOLE</span>
+        <div class="logbox" id="bp-log" style="height:120px"></div>
       </div>
     </section>
 
@@ -454,7 +519,25 @@
           <label class="field" data-i18n="set.libdirs">LIBRARY</label>
           <input type="text" id="set-libdirs" spellcheck="false" placeholder="D:\PS5;E:\dumps">
         </div>
+        <div class="row">
+          <label class="field" data-i18n="set.scale">UI SCALE</label>
+          <select id="set-scale" class="compact-select">
+            <option value="0.8">80%</option>
+            <option value="0.9">90%</option>
+            <option value="1" selected>100%</option>
+            <option value="1.1">110%</option>
+            <option value="1.25">125%</option>
+            <option value="1.5">150%</option>
+            <option value="1.75">175%</option>
+            <option value="2">200%</option>
+            <option value="2.25">225%</option>
+            <option value="2.5">250%</option>
+          </select>
+          <span class="hint inline-hint" data-i18n="set.scale.hint">Applied immediately</span>
+        </div>
       </div>
+      <details class="advanced-block">
+        <summary data-i18n="set.advanced">Advanced build defaults</summary>
       <div class="split">
         <div class="panel">
           <span class="tag">EXFAT</span>
@@ -466,9 +549,6 @@
               <option value="131072">128 KB</option>
               <option value="0" data-i18n="auto">Auto</option>
             </select>
-          </div>
-          <div class="opts">
-            <span class="chip on" id="set-verify"><span class="box"></span><span data-i18n="opt.verify">VERIFY AFTER BUILD</span></span>
           </div>
         </div>
         <div class="panel">
@@ -488,7 +568,7 @@
           </div>
         </div>
       </div>
-      <div class="split">
+      <div class="split one-column">
         <div class="panel">
           <span class="tag">FFPKG</span>
           <div class="row">
@@ -499,16 +579,22 @@
           </div>
           <div class="hint" id="set-ffpkg-status"></div>
         </div>
-        <div class="panel">
-          <span class="tag">PS5</span>
-          <div class="row">
-            <label class="field" data-i18n="lbl.host">IP</label>
-            <input type="text" id="set-ps5host" spellcheck="false">
-          </div>
-          <div class="row">
-            <label class="field" data-i18n="lbl.remote">PATH</label>
-            <input type="text" id="set-ps5path" spellcheck="false">
-          </div>
+      </div>
+      </details>
+      <div class="panel">
+        <span class="tag">PS5</span>
+        <h2 data-i18n="set.console">CONSOLE DEFAULTS</h2>
+        <div class="row">
+          <label class="field" data-i18n="lbl.host">IP</label>
+          <input type="text" id="set-ps5host" spellcheck="false">
+        </div>
+        <div class="row">
+          <label class="field" data-i18n="lbl.firmware">FIRMWARE</label>
+          <input type="text" id="set-ps5fw" list="fw-versions" spellcheck="false" placeholder="5.50">
+        </div>
+        <div class="row">
+          <label class="field" data-i18n="lbl.remote">PATH</label>
+          <input type="text" id="set-ps5path" spellcheck="false">
         </div>
       </div>
       <div class="actions">
@@ -536,15 +622,64 @@
           <p style="margin-top:10px" data-i18n="about.license">Licensed GPL-3.0, following MkPFS upstream.</p>
         </div>
       </div>
+      <div class="panel">
+        <span class="tag">PAYLOADS</span>
+        <h2 data-i18n="about.payloads">PAYLOAD PROJECT CREDITS</h2>
+        <div class="hint" data-i18n="about.payloads.hint">Thanks to every upstream payload project included in the catalog.</div>
+        <div id="about-payload-credits" class="payload-credit-list"></div>
+      </div>
     </section>
 
   </main>
 </div>
 
-<footer>
-  <span id="foot-left">exFAT FORGE // GPL-3.0</span>
-  <span id="demo-badge" class="demo" style="display:none" data-i18n="demo">DEMO MODE — NO BRIDGE</span>
+<footer id="app-log-footer" class="collapsed">
+  <div id="app-log-resizer" class="app-log-resizer" data-i18n-title="log.resize"></div>
+  <div id="app-log-summary" class="app-log-summary" role="button" tabindex="0"
+       aria-expanded="false" aria-controls="app-log-drawer">
+    <span class="app-log-mark">LOG</span>
+    <span id="app-log-last" class="app-log-last">—</span>
+    <span id="demo-badge" class="demo" style="display:none" data-i18n="demo">DEMO MODE — NO BRIDGE</span>
+    <span class="app-log-chevron" aria-hidden="true">⌃</span>
+    <span id="foot-left" class="app-log-version">v—</span>
+  </div>
+  <div id="app-log-drawer" class="app-log-drawer" aria-hidden="true">
+    <div class="app-log-toolbar">
+      <span data-i18n="log.title">APPLICATION LOG</span>
+      <span class="grow"></span>
+      <button id="app-log-copy" data-i18n="log.copy">COPY</button>
+    </div>
+    <div id="app-log-content" class="app-log-content" tabindex="0"
+         data-i18n-aria="log.title"></div>
+  </div>
 </footer>
+</div>
+
+<div id="app-dialog-backdrop" class="dialog-backdrop" hidden>
+  <div class="app-dialog" role="dialog" aria-modal="true"
+       aria-labelledby="app-dialog-title" aria-describedby="app-dialog-message">
+    <span class="tag" data-i18n="dialog.tag">CONFIRM ACTION</span>
+    <h2 id="app-dialog-title" data-i18n="dialog.backport.title">CONFIRM AUTO BACKPORT</h2>
+    <p id="app-dialog-message" class="dialog-message"></p>
+    <div class="dialog-backup-note">
+      <span class="dialog-shield">◇</span>
+      <span id="app-dialog-note" data-i18n="dialog.backup.note">The original file is backed up and verified before replacement.</span>
+    </div>
+    <div class="actions dialog-actions">
+      <button id="app-dialog-cancel" data-i18n="btn.cancel">CANCEL</button>
+      <button id="app-dialog-confirm" class="primary" data-i18n="btn.confirm">CONFIRM</button>
+    </div>
+  </div>
+</div>
+
+<div class="resize-handle resize-top" data-edge="top"></div>
+<div class="resize-handle resize-right" data-edge="right"></div>
+<div class="resize-handle resize-bottom" data-edge="bottom"></div>
+<div class="resize-handle resize-left" data-edge="left"></div>
+<div class="resize-handle resize-top-left" data-edge="top-left"></div>
+<div class="resize-handle resize-top-right" data-edge="top-right"></div>
+<div class="resize-handle resize-bottom-left" data-edge="bottom-left"></div>
+<div class="resize-handle resize-bottom-right" data-edge="bottom-right"></div>
 
 <script src="i18n.js"></script>
 <script src="app.js"></script>

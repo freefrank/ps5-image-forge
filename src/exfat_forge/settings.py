@@ -47,6 +47,7 @@ class Settings:
     # ui
     lang: str = ""            # "" = follow system
     theme_accent: str = "cyan"
+    ui_scale: float = 1.0
 
     # exfat
     cluster_size: int = 65536  # 0 = mkpfs auto; default 64 KiB
@@ -69,7 +70,12 @@ class Settings:
     ps5_ftp_path: str = "/data/etaHEN/games/"
     ps5_klog_port: int = 3232
     ps5_payload_port: int = 9021
+    ps5_firmware: str = ""       # user-selected; never probed through 9021
     payload_dir: str = ""
+
+    # backport
+    backport_dir: str = ""
+    backport_target: int = 5
 
     @classmethod
     def path(cls) -> Path:

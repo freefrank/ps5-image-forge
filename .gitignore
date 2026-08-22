@@ -4,6 +4,7 @@ __pycache__/
 *.egg-info/
 build/
 dist/
+.playwright-cli/
 .pytest_cache/
 *.exfat
 *.exfat.part

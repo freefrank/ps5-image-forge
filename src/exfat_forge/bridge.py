@@ -18,7 +18,7 @@ import traceback
 from dataclasses import asdict
 from pathlib import Path
 
-from . import (catalog, core, i18n, library, payloads, pipeline, ps5,
+from . import (backport, catalog, core, i18n, library, payloads, pipeline, ps5,
                ps5_services, ufs)
 from .settings import History, Settings
 
@@ -33,6 +33,7 @@ class Bridge:
         # WinForms control tree — a huge malformed function table that makes
         # each call slow and shadows real methods.
         self._window = window
+        self._maximized = False
         self._settings = Settings.load()
         self._worker: threading.Thread | None = None
         self._cancel: core.CancelToken | None = None
@@ -88,9 +89,58 @@ class Bridge:
         if self._window:
             self._window.minimize()
 
-    def toggle_maximize(self) -> None:
-        if self._window:
-            self._window.toggle_fullscreen()
+    def toggle_maximize(self) -> bool:
+        """Toggle a normal maximized window, not exclusive fullscreen."""
+        if not self._window:
+            return False
+        if self._maximized:
+            self._window.restore()
+        else:
+            self._window.maximize()
+        self._maximized = not self._maximized
+        return self._maximized
+
+    def begin_resize(self, edge: str) -> bool:
+        """Start the native Win32 resize loop for a frameless window."""
+        if not self._window or self._maximized:
+            return False
+        hit_tests = {
+            "left": 10, "right": 11, "top": 12,
+            "top-left": 13, "top-right": 14, "bottom": 15,
+            "bottom-left": 16, "bottom-right": 17,
+        }
+        hit = hit_tests.get(edge)
+        if hit is None:
+            return False
+        try:
+            import ctypes
+            from ctypes import wintypes
+
+            native = self._window.native
+            user32 = ctypes.windll.user32
+            user32.ReleaseCapture.argtypes = ()
+            user32.ReleaseCapture.restype = wintypes.BOOL
+            user32.PostMessageW.argtypes = (
+                wintypes.HWND, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM)
+            user32.PostMessageW.restype = wintypes.BOOL
+
+            def start_native_resize() -> None:
+                handle = wintypes.HWND(native.Handle.ToInt64())
+                user32.ReleaseCapture()
+                user32.PostMessageW(handle, 0x00A1, hit, 0)
+
+            # pywebview invokes JS API methods on a worker thread. Mouse capture
+            # belongs to the WinForms UI thread, so marshal the short native
+            # dispatch back to the form before starting its standard size loop.
+            if native.InvokeRequired:
+                import clr  # noqa: F401  # initializes pythonnet's System module
+                from System import Action
+                native.BeginInvoke(Action(start_native_resize))
+            else:
+                start_native_resize()
+            return True
+        except (AttributeError, OSError, TypeError, ValueError):
+            return False
 
     def close(self) -> None:
         if self._klog:
@@ -103,10 +153,17 @@ class Bridge:
     def get_settings(self) -> dict:
         data = self._settings.as_dict()
         data["lang"] = i18n.get_locale()
+        data["backport_target_recommended"] = backport.recommended_target(
+            self._settings.ps5_firmware)
         return data
 
     def save_settings(self, values: dict) -> dict:
         self._settings.update(values)
+        if "ps5_firmware" in values:
+            recommended = backport.recommended_target(
+                self._settings.ps5_firmware)
+            if recommended is not None:
+                self._settings.backport_target = recommended
         self._settings.save()
         if values.get("lang"):
             i18n.set_locale(values["lang"])
@@ -248,6 +305,60 @@ class Bridge:
         except Exception as exc:
             return {"ok": False, "error": str(exc)}
 
+    # ── backport / SDK downgrade ─────────────────────────────────
+
+    def backport_scan(self, folder: str = "") -> dict:
+        target = (folder or "").strip('" ') or self._settings.backport_dir
+        if not target:
+            return {"ok": False, "error": "no folder selected", "items": []}
+        try:
+            items = backport.scan(Path(target))
+        except backport.BackportError as exc:
+            return {"ok": False, "error": str(exc), "items": []}
+        self._settings.backport_dir = target
+        self._settings.save()
+        public = [item.public_dict() for item in items]
+        backups = backport.backup_inventory(Path(target))
+        eligible = sum(i.status == "patchable" or
+                       (i.status == "signed" and i.ps5_sdk is not None)
+                       for i in items)
+        return {"ok": True, "folder": target, "items": public,
+                "backups": backups,
+                "restorable": sum(bool(item["restorable"]) for item in backups),
+                "patchable": sum(i.status == "patchable" for i in items),
+                "signed": sum(i.status == "signed" for i in items),
+                "eligible": eligible,
+                "skipped": sum(i.status not in ("patchable", "signed") for i in items)}
+
+    def backport_apply(self, folder: str, target: int,
+                       backup: bool = True) -> dict:
+        source = (folder or "").strip('" ')
+        if not source:
+            return {"ok": False, "error": "no folder selected"}
+        try:
+            selected = int(target)
+            result = backport.patch_folder(Path(source), selected,
+                                           backup=bool(backup))
+        except (ValueError, OSError, backport.BackportError) as exc:
+            return {"ok": False, "error": str(exc)}
+        self._settings.backport_dir = source
+        self._settings.backport_target = selected
+        self._settings.save()
+        backups = backport.backup_inventory(Path(source))
+        return {"ok": result["failed"] == 0, **result,
+                "backups": backups,
+                "restorable": sum(bool(item["restorable"]) for item in backups)}
+
+    def backport_restore(self, folder: str) -> dict:
+        source = (folder or "").strip('" ')
+        if not source:
+            return {"ok": False, "error": "no folder selected"}
+        try:
+            result = backport.restore_folder(Path(source))
+        except (OSError, backport.BackportError) as exc:
+            return {"ok": False, "error": str(exc)}
+        return {"ok": result["failed"] == 0, **result}
+
     # ── PS5 ───────────────────────────────────────────────────────
 
     def ps5_probe(self, host: str, port: int) -> dict:
@@ -315,8 +426,9 @@ class Bridge:
     def ps5_list(self, host: str, port: int, path: str) -> dict:
         try:
             with ps5.PS5Ftp(host, int(port)) as ftp:
-                return {"ok": True,
-                        "entries": [asdict(e) for e in ftp.listdir(path)]}
+                entries = ftp.listdir(path)
+                return {"ok": True, "path": ftp.pwd(),
+                        "entries": [asdict(e) for e in entries]}
         except ps5.PS5Error as exc:
             return {"ok": False, "error": str(exc)}
 
@@ -362,13 +474,31 @@ class Bridge:
 
     # ── payload catalogue ─────────────────────────────────────────
 
-    def payload_catalog(self) -> dict:
-        """Metadata for the known payloads. Ships no binaries — see catalog.py."""
+    def payload_catalog(self, firmware: str = "") -> dict:
+        """Known payloads, annotated for the user's selected firmware."""
         try:
+            selected = (firmware or self._settings.ps5_firmware).strip()
             return {"ok": True, "source": catalog.metadata_source(),
-                    "entries": catalog.as_dicts()}
+                    "firmware": selected,
+                    "entries": catalog.as_dicts(selected)}
         except catalog.CatalogError as exc:
             return {"ok": False, "error": str(exc), "entries": []}
+
+    def install_bundled_payload(self, entry_id: str, folder: str = "",
+                                overwrite: bool = False) -> dict:
+        """Verify and release an embedded payload into a normal local folder."""
+        try:
+            entry = catalog.find(entry_id)
+            requested = (folder or "").strip('" ')
+            target_dir = Path(requested) if requested else None
+            path = catalog.install_bundled(entry, target_dir,
+                                           overwrite=bool(overwrite))
+        except (catalog.CatalogError, OSError) as exc:
+            return {"ok": False, "error": str(exc)}
+        self._settings.payload_dir = str(path.parent)
+        self._settings.save()
+        return {"ok": True, "folder": str(path.parent), "path": str(path),
+                "file": path.name}
 
     def download_catalog_payload(self, entry_id: str, folder: str = "",
                                  overwrite: bool = False) -> dict:

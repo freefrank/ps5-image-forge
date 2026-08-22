@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import subprocess
 import sys
 import threading
@@ -349,20 +350,52 @@ def pack_pfs(image: Path, output: Path | None = None, *,
     if threads:
         cmd += ["--cpu-count", str(threads)]
     if progress:
+        progress(ProgressEvent("pfs", 0, 0,
+                               "$ " + subprocess.list2cmdline(cmd)))
         progress(ProgressEvent(
             "pfs", 0, 0,
             f"packing {image.name}"
             + (f" (compress L{compression_level})" if compress else "")))
     creationflags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
     env = dict(os.environ, PYTHONIOENCODING="utf-8:replace")
-    proc = subprocess.run(
-        cmd, capture_output=True, text=True,
+    proc = subprocess.Popen(
+        cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
         encoding="utf-8", errors="replace", creationflags=creationflags,
-        env=env)
+        env=env, bufsize=0)
+    assert proc.stdout is not None
+    output_parts: list[str] = []
+    record = ""
+
+    def report_record(value: str) -> None:
+        line = value.strip()
+        if not line or progress is None:
+            return
+        match = re.search(r"\]\s*(\d{1,3})%\s+([\w-]+)(.*)$", line)
+        if match:
+            pct = min(100, int(match.group(1)))
+            raw_phase = match.group(2).lower()
+            phase = "compress" if raw_phase == "compress" else "pfs"
+            progress(ProgressEvent(phase, pct, 100, match.group(3).strip()))
+        else:
+            progress(ProgressEvent("pfs", 0, 0, line[:180]))
+
+    while True:
+        char = proc.stdout.read(1)
+        if not char:
+            break
+        output_parts.append(char)
+        if char in "\r\n":
+            report_record(record)
+            record = ""
+        else:
+            record += char
+    report_record(record)
+    proc.wait()
+    process_output = "".join(output_parts)
     if proc.returncode != 0:
         raise RuntimeError(
             f"mkpfs pack failed (exit {proc.returncode}):\n"
-            f"{proc.stdout[-2000:]}\n{proc.stderr[-2000:]}")
+            f"{process_output[-4000:]}")
     if progress:
         progress(ProgressEvent("pfs", 1, 1, output.name))
     return output
@@ -381,6 +414,8 @@ def extract_pfs(image: Path, dest: Path, *,
     if overwrite:
         cmd.append("--overwrite")
     if progress:
+        progress(ProgressEvent("extract", 0, 0,
+                               "$ " + subprocess.list2cmdline(cmd)))
         progress(ProgressEvent("extract", 0, 0, f"unpacking {image.name}"))
     proc = subprocess.run(
         cmd, capture_output=True, text=True, encoding="utf-8",

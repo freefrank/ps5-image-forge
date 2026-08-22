@@ -1,8 +1,8 @@
 {
-  "schema": 1,
+  "schema": 2,
   "captured": "2026-08-22",
   "metadata_source": "http://45.56.67.85/umtx2/payload_map.js",
-  "note": "Metadata only. Every binary_url points at the project's own release asset, so downloads come from upstream rather than from this file's source or from anything bundled in the exe. Links were checked on 2026-08-22; run tools/check_catalog_links.py to re-check.",
+  "note": "Direct upstream release assets are pinned and bundled with SHA-256 hashes. 45.56.67.85 supplies the curated metadata and compatibility guidance; binaries retain their upstream URLs for provenance and updates.",
   "entries": [
     {
       "id": "pldmgr",
@@ -69,6 +69,20 @@
       "port": 9021
     },
     {
+      "id": "backpork",
+      "title": "BackPork",
+      "file": "ps5-backpork.elf",
+      "author": "BestPig, idlesauce",
+      "version": "0.1",
+      "description": "Background unionfs payload for sideloading compatible system libraries from a game's fakelib folder.",
+      "project_url": "https://github.com/BestPig/BackPork",
+      "binary_url": "https://github.com/BestPig/BackPork/releases/download/0.1/ps5-backpork.elf",
+      "page_url": "https://github.com/BestPig/BackPork/releases/tag/0.1",
+      "firmwares": null,
+      "max_firmware": "12.00",
+      "port": 9021
+    },
+    {
       "id": "elf-arsenal",
       "title": "Elf Arsenal",
       "file": "elf-arsenal.elf",
@@ -108,11 +122,9 @@
       "project_url": "https://github.com/EchoStretch/kstuff",
       "binary_url": "https://github.com/EchoStretch/kstuff/releases/download/v1.6.7/kstuff.elf",
       "page_url": null,
-      "firmwares": [
-        "3.",
-        "4.",
-        "5."
-      ],
+      "firmwares": null,
+      "min_firmware": "3.00",
+      "max_firmware": "10.01",
       "port": 9021
     },
     {
@@ -125,11 +137,9 @@
       "project_url": "https://github.com/EchoStretch/kstuff-lite",
       "binary_url": "https://github.com/EchoStretch/kstuff-lite/releases/download/v1.10/kstuff.elf",
       "page_url": null,
-      "firmwares": [
-        "3.",
-        "4.",
-        "5."
-      ],
+      "firmwares": null,
+      "min_firmware": "3.00",
+      "max_firmware": "12.70",
       "port": 9021
     },
     {
@@ -295,9 +305,13 @@
       "version": "0.1.1",
       "description": "Get Remote Play PIN for offline activated users. Send again to cancel.",
       "project_url": "https://github.com/idlesauce/ps5-remoteplay-get-pin",
-      "binary_url": null,
+      "binary_url": "https://github.com/idlesauce/ps5-remoteplay-get-pin/releases/download/v0.1.1/rp-get-pin.elf",
       "page_url": "https://github.com/idlesauce/ps5-remoteplay-get-pin/releases/tag/v0.1.1",
-      "firmwares": null,
+      "firmwares": [
+        "5.",
+        "6.",
+        "7."
+      ],
       "port": 9021
     }
   ]

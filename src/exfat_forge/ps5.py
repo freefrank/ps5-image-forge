@@ -120,21 +120,46 @@ class PS5Ftp:
             raise PS5Error("not connected")
         return self._ftp
 
+    def cwd(self, path: str) -> str:
+        """Enter ``path`` and return the server-confirmed working directory.
+
+        PS5 FTP servers based on ftpsrv accept ``MLSD <path>`` but some builds
+        silently ignore the argument and list the current directory instead.
+        Explicit CWD followed by an argument-less listing works consistently.
+        """
+        target = path or "/"
+        try:
+            self.ftp.cwd(target)
+        except ftplib.all_errors as exc:
+            raise PS5Error(f"cannot enter {target}: {exc}") from exc
+        return self.pwd()
+
+    def pwd(self) -> str:
+        """Return the working directory reported by the FTP server."""
+        try:
+            return self.ftp.pwd()
+        except ftplib.all_errors as exc:
+            raise PS5Error(f"cannot read current FTP directory: {exc}") from exc
+
     def listdir(self, path: str = ".") -> list[RemoteEntry]:
         """List ``path``; falls back to NLST when MLSD is unsupported."""
+        if path not in ("", "."):
+            self.cwd(path)
         out: list[RemoteEntry] = []
         try:
-            for name, facts in self.ftp.mlsd(path):
-                if name in (".", ".."):
+            for name, facts in self.ftp.mlsd():
+                base = name.replace("\\", "/").rstrip("/").rsplit("/", 1)[-1]
+                kind = facts.get("type")
+                if base in ("", ".", "..") or kind in ("cdir", "pdir"):
                     continue
                 out.append(RemoteEntry(
-                    name, facts.get("type") == "dir",
+                    base, kind == "dir",
                     int(facts.get("size", 0) or 0)))
             return sorted(out, key=lambda e: (not e.is_dir, e.name.lower()))
         except ftplib.all_errors:
             pass
         try:
-            names = self.ftp.nlst(path)
+            names = self.ftp.nlst()
         except ftplib.all_errors as exc:
             raise PS5Error(f"cannot list {path}: {exc}") from exc
         for name in names:

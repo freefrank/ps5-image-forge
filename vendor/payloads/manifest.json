@@ -1,0 +1,150 @@
+{
+  "schema": 1,
+  "catalog_source": "http://45.56.67.85/umtx2/payload_map.js",
+  "entries": [
+    {
+      "id": "pldmgr",
+      "file": "pldmgr.elf",
+      "size": 2410768,
+      "sha256": "05617c69ea145d1c11b8f7a6b7d3bd9e6df3831afd25d71a4ac85d63fb8e28aa",
+      "source_url": "https://github.com/itsPLK/ps5-payload-manager/releases/download/v0.5.1/pldmgr_v0.5.1.elf",
+      "version": "0.5.1"
+    },
+    {
+      "id": "ps5-linux-loader",
+      "file": "ps5-linux-loader.elf",
+      "size": 179472,
+      "sha256": "51382795b486f7c5a3681648d457d129088311fc3f9601aeaff78dc72fafcf1d",
+      "source_url": "https://github.com/ps5-linux/ps5-linux-loader/releases/download/v2.4/ps5-linux-loader.elf",
+      "version": "2.4"
+    },
+    {
+      "id": "garlic-savemgr",
+      "file": "garlic-savemgr.elf",
+      "size": 1642928,
+      "sha256": "245150007dd2c48da6d0fdf791396a31434095e27f0175587b7b18ec3b8d6d5d",
+      "source_url": "https://git.etawen.dev/earthonion/garlic-savemgr/releases/download/v1.12/garlic-savemgr.elf",
+      "version": "1.12"
+    },
+    {
+      "id": "shadowmountplus",
+      "file": "shadowmountplus.elf",
+      "size": 1457528,
+      "sha256": "a35246fb3bb6042b25653b51cdcbc33254b40339342bf1d2dd0d2eceee2ca526",
+      "source_url": "https://github.com/drakmor/ShadowMountPlus/releases/download/1.6beta16/shadowmountplus.elf",
+      "version": "1.6beta16"
+    },
+    {
+      "id": "backpork",
+      "file": "ps5-backpork.elf",
+      "size": 99800,
+      "sha256": "d74e4cd119b2bb1fd423f2f5b1c9a7f096b3e588c753af1ab48b983d56216a52",
+      "source_url": "https://github.com/BestPig/BackPork/releases/download/0.1/ps5-backpork.elf",
+      "version": "0.1"
+    },
+    {
+      "id": "elf-arsenal",
+      "file": "elf-arsenal.elf",
+      "size": 4708560,
+      "sha256": "ee8f47e4d6a5fd85cef113341aa1eb74d68e373a58fcb1fb5a9274acd2b83bd2",
+      "source_url": "https://git.etawen.dev/soniciso/elf-arsenal/releases/download/v1.6.22/elf-arsenal.elf",
+      "version": "1.6.22"
+    },
+    {
+      "id": "etaHEN-2.5B",
+      "file": "etaHEN-2.5B.bin",
+      "size": 4678728,
+      "sha256": "4845cac45095361b8983b14d6690622183b0dcfbf6d7fda16e161aa91ff0531e",
+      "source_url": "https://github.com/etaHEN/etaHEN/releases/download/2.5B/etaHEN-2.5B.bin",
+      "version": "2.5B"
+    },
+    {
+      "id": "kstuff",
+      "file": "kstuff.elf",
+      "size": 1550152,
+      "sha256": "f1c1f4b2b6395644af04cbe9828aba58586acf7aacb9e01113cac92ce16e3569",
+      "source_url": "https://github.com/EchoStretch/kstuff/releases/download/v1.6.7/kstuff.elf",
+      "version": "1.6.7"
+    },
+    {
+      "id": "kstuff-lite",
+      "file": "kstuff-lite.elf",
+      "size": 1572832,
+      "sha256": "b1dfe57f367a35374f605127915eda38c76a6ed5d1c729e427955798bd78c66a",
+      "source_url": "https://github.com/EchoStretch/kstuff-lite/releases/download/v1.10/kstuff.elf",
+      "version": "1.10"
+    },
+    {
+      "id": "byepervisor",
+      "file": "byepervisor.elf",
+      "size": 348256,
+      "sha256": "f913ba96bf87561bcc22f1391d2ad58515b3ed0a9e5199d63dbbd9125ec3c317",
+      "source_url": "https://github.com/EchoStretch/Byepervisor/releases/download/1.1/byepervisor.elf",
+      "version": "1.1"
+    },
+    {
+      "id": "websrv-ps5",
+      "file": "websrv-ps5.elf",
+      "size": 1597864,
+      "sha256": "54730c867c6e1148536fdcb370e63a7762d989ea87b62488ad4caff64d43f263",
+      "source_url": "https://github.com/ps5-payload-dev/websrv/releases/download/v0.34/websrv-ps5.elf",
+      "version": "0.34"
+    },
+    {
+      "id": "ftpsrv-ps5",
+      "file": "ftpsrv-ps5.elf",
+      "size": 191864,
+      "sha256": "7d4b31c83eae4e056580482a3a074e1db25922efc74ac1e439473b45d71a5938",
+      "source_url": "https://github.com/ps5-payload-dev/ftpsrv/releases/download/v0.21.1/ftpsrv-ps5.elf",
+      "version": "0.21.1"
+    },
+    {
+      "id": "klogsrv-ps5",
+      "file": "klogsrv-ps5.elf",
+      "size": 136016,
+      "sha256": "e828ec144231f81547cb58bc7d2c396fa984be0c2295f31364b58017816dcceb",
+      "source_url": "https://github.com/ps5-payload-dev/klogsrv/releases/download/v0.9/klogsrv-ps5.elf",
+      "version": "0.9"
+    },
+    {
+      "id": "shsrv-ps5",
+      "file": "shsrv-ps5.elf",
+      "size": 986184,
+      "sha256": "fa4ccb2587bb61be317df0d001f668b17ebf9b4aafad87acf691b1fb8da0bd2d",
+      "source_url": "https://github.com/ps5-payload-dev/shsrv/releases/download/v0.20/shsrv-ps5.elf",
+      "version": "0.20"
+    },
+    {
+      "id": "gdbsrv-ps5",
+      "file": "gdbsrv-ps5.elf",
+      "size": 174248,
+      "sha256": "80952d75f423768b95385f0944e5a5c2f417dcc10c22c1bb6516a923ad8894e5",
+      "source_url": "https://github.com/ps5-payload-dev/gdbsrv/releases/download/v0.9/gdbsrv-ps5.elf",
+      "version": "0.9"
+    },
+    {
+      "id": "ps5debug_dizz",
+      "file": "ps5debug_dizz.elf",
+      "size": 226960,
+      "sha256": "e34fd39c286d7b8e31b47d72005efe68e62401f35eb20ba7c442e9ad638bca22",
+      "source_url": "https://github.com/idlesauce/ps5debug/releases/download/v0.0.1/ps5debug.elf",
+      "version": "0.0.1-r2"
+    },
+    {
+      "id": "ps5-versions",
+      "file": "ps5-versions.elf",
+      "size": 9880,
+      "sha256": "4df615bf70ad51d977f4f2898ae23b7c7349d32afe0e37783d8b62aedd7700be",
+      "source_url": "https://github.com/SiSTR0/ps5-versions/releases/download/v1.0/ps5-versions.elf",
+      "version": "1.0"
+    },
+    {
+      "id": "rp-get-pin",
+      "file": "rp-get-pin.elf",
+      "size": 117848,
+      "sha256": "1d611c1856dd2f4b4b6cb42ead1128a7f08a26585788f92de79fa4f67d721472",
+      "source_url": "https://github.com/idlesauce/ps5-remoteplay-get-pin/releases/download/v0.1.1/rp-get-pin.elf",
+      "version": "0.1.1"
+    }
+  ]
+}
