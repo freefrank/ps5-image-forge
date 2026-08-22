@@ -377,38 +377,6 @@
 
     <!-- ── PAYLOAD ──────────────────────────────────────── -->
     <section class="page" id="page-payload">
-      <div class="panel payload-folder-panel">
-        <span class="tag" data-i18n="tag.library">LOCAL</span>
-        <details class="advanced" style="margin-top:0">
-          <summary data-i18n="payload.custom">Custom payload folder</summary>
-          <div class="row">
-            <label class="field" data-i18n="lbl.folder">FOLDER</label>
-            <input type="text" id="pl-dir" spellcheck="false">
-            <button id="pl-pick-dir" data-i18n="btn.browse2">BROWSE…</button>
-            <button id="pl-scan" data-i18n="btn.scan">SCAN</button>
-          </div>
-          <div class="hint" data-i18n="payload.libhint">Put your .elf / .bin payloads in one folder. Details are read from each file; a matching .txt / .md / .json is used as its description.</div>
-        </details>
-      </div>
-
-      <div class="split payload-local-panel" style="grid-template-columns:1fr 1.15fr">
-        <div class="panel">
-          <span class="tag">PAYLOADS</span>
-          <div class="table-scroll" style="max-height:270px">
-            <table><thead><tr>
-              <th data-i18n="col.name">NAME</th><th data-i18n="col.caps">CAPABILITIES</th>
-              <th class="num" data-i18n="col.size">SIZE</th>
-            </tr></thead><tbody id="pl-list"></tbody></table>
-            <div class="empty" id="pl-empty" data-i18n="empty.payloads">No payloads — pick a folder and scan</div>
-          </div>
-        </div>
-
-        <div class="panel">
-          <span class="tag">DETAILS</span>
-          <div id="pl-detail"><div class="empty" data-i18n="payload.pick">Select a payload</div></div>
-        </div>
-      </div>
-
       <div class="panel payload-catalog-panel">
         <span class="tag" data-i18n="tag.catalog">CATALOG</span>
         <div class="row">
@@ -441,6 +409,38 @@
           <div class="empty" id="cat-empty" data-i18n="empty.catalog">Press refresh to load the catalog</div>
         </div>
         <div class="hint" id="cat-source" style="margin-top:6px"></div>
+      </div>
+
+      <div class="split payload-local-panel" style="grid-template-columns:1fr 1.15fr">
+        <div class="panel">
+          <span class="tag">PAYLOADS</span>
+          <div class="table-scroll" style="max-height:270px">
+            <table><thead><tr>
+              <th data-i18n="col.name">NAME</th><th data-i18n="col.caps">CAPABILITIES</th>
+              <th class="num" data-i18n="col.size">SIZE</th>
+            </tr></thead><tbody id="pl-list"></tbody></table>
+            <div class="empty" id="pl-empty" data-i18n="empty.payloads">No payloads — pick a folder and scan</div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <span class="tag">DETAILS</span>
+          <div id="pl-detail"><div class="empty" data-i18n="payload.pick">Select a payload</div></div>
+        </div>
+      </div>
+
+      <div class="panel payload-folder-panel">
+        <span class="tag" data-i18n="tag.library">LOCAL</span>
+        <details class="advanced" style="margin-top:0">
+          <summary data-i18n="payload.custom">Custom payload folder</summary>
+          <div class="row">
+            <label class="field" data-i18n="lbl.folder">FOLDER</label>
+            <input type="text" id="pl-dir" spellcheck="false">
+            <button id="pl-pick-dir" data-i18n="btn.browse2">BROWSE…</button>
+            <button id="pl-scan" data-i18n="btn.scan">SCAN</button>
+          </div>
+          <div class="hint" data-i18n="payload.libhint">Put your .elf / .bin payloads in one folder. Details are read from each file; a matching .txt / .md / .json is used as its description.</div>
+        </details>
       </div>
 
       <div class="panel payload-send-panel">
