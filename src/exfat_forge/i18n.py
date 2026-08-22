@@ -24,6 +24,11 @@ _STRINGS: dict[str, dict[str, str]] = {
         "cancelled": "[cancelled]",
         "error": "[error] {msg}",
         "log.no_eboot": "warning: no eboot.bin in source — not a game dump?",
+        "busy": "another job is already running",
+        "build.ok": "built {path} ({size})",
+        "upload.ok": "uploaded {path}",
+        "upload.all": "{count} file(s) uploaded",
+        "payload.ok": "sent {name} ({bytes:,} bytes)",
     },
     "zh": {
         "scan.done": "[扫描] {files:,} 个文件, {dirs:,} 个目录, {size}",
@@ -37,6 +42,11 @@ _STRINGS: dict[str, dict[str, str]] = {
         "cancelled": "[已取消]",
         "error": "[错误] {msg}",
         "log.no_eboot": "警告: 源目录中没有 eboot.bin — 可能不是游戏 dump?",
+        "busy": "已有任务正在运行",
+        "build.ok": "已生成 {path} ({size})",
+        "upload.ok": "已上传 {path}",
+        "upload.all": "已上传 {count} 个文件",
+        "payload.ok": "已发送 {name} ({bytes:,} 字节)",
     },
 }
 
