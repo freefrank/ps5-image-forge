@@ -98,6 +98,11 @@ window.I18N = {
     "ps5.result": "{open} of {total} ports open",
     "ps5.jump": "Open the page for this service",
     "ps5.hint": "Probes only the address you type — no network discovery.",
+    "ps5.verdict.high": "<b>Jailbroken PS5 confirmed.</b> The elfldr is listening on 9021 — nothing else puts a service there. Payloads can be sent.",
+    "ps5.verdict.likely": "<b>Probably a jailbroken PS5.</b> A payload loader answered on {port}, but 9021 did not — etaHEN may not be running.",
+    "ps5.verdict.unlikely": "<b>Not a payload-ready console.</b> Something answered, but no loader port did — the console may not be jailbroken, or the loader is not running yet.",
+    "ps5.verdict.other": "<b>Not a PS5, as far as this can tell.</b> Ports are open, but none of them belong to a known homebrew service.",
+    "ps5.verdict.none": "<b>Nothing answered.</b> Wrong address, the console is asleep, or no homebrew service is running.",
     // payload catalog
     "tag.catalog": "CATALOG", "ph.filter": "filter by name, author or firmware",
     "col.author": "AUTHOR", "col.version": "VER", "col.fw": "FW", "col.get": "GET",
@@ -202,6 +207,11 @@ window.I18N = {
     "ps5.result": "{total} 个端口中 {open} 个开放",
     "ps5.jump": "跳转到该服务对应的页面",
     "ps5.hint": "只探测你填写的这一台主机，不做网段发现。",
+    "ps5.verdict.high": "<b>确认是越狱 PS5。</b>9021 上的 elfldr 正在监听 —— 只有它会占这个端口。可以发送 payload。",
+    "ps5.verdict.likely": "<b>大概率是越狱 PS5。</b>{port} 上有 payload loader 响应，但 9021 没有 —— etaHEN 可能没在跑。",
+    "ps5.verdict.unlikely": "<b>不是可发 payload 的主机。</b>有端口响应，但没有一个是 loader —— 可能没越狱，或者 loader 还没启动。",
+    "ps5.verdict.other": "<b>就目前判断不像 PS5。</b>有端口开放，但没有一个属于已知的 homebrew 服务。",
+    "ps5.verdict.none": "<b>没有任何响应。</b>地址不对、主机休眠，或者没有运行 homebrew 服务。",
     // payload catalog
     "tag.catalog": "目录", "ph.filter": "按名称、作者或固件筛选",
     "col.author": "作者", "col.version": "版本", "col.fw": "固件", "col.get": "获取",

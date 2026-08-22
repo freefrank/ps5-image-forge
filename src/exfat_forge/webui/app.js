@@ -38,6 +38,7 @@ function applyLang() {
   document.documentElement.lang = lang;
   renderHistory(lastHistory);
   if (scanRows.length) renderPorts();
+  if (lastVerdict) showVerdict(lastVerdict);
   if (catItems.length) renderCatalog();
 }
 
@@ -402,6 +403,24 @@ async function refreshHome() {
   </tr>`).join("")}</tbody></table>` : `<div class="empty">${t("empty.history")}</div>`;
 }
 
+/* ── the console address ──────────────────────────────── */
+/* One host, four pages. Typing it anywhere fills it everywhere and saves it,
+ * so the Manager is the last place you have to type an IP. */
+const HOST_INPUTS = ["ps5-host", "ftp-host", "kl-host", "pl-host", "set-ps5host"];
+let lastHost = "";
+
+function setHost(host, { save = true } = {}) {
+  host = (host || "").trim();
+  HOST_INPUTS.forEach(id => { const el = $(id); if (el) el.value = host; });
+  if (!save || !host || host === lastHost) { lastHost = host; return; }
+  lastHost = host;
+  const b = bridge(); if (b) b.set_ps5_host(host);
+}
+HOST_INPUTS.forEach(id => {
+  const el = $(id);
+  if (el) el.addEventListener("change", () => setHost(el.value));
+});
+
 /* ── PS5 MANAGER page ─────────────────────────────────── */
 /* One console, the ports the homebrew scene actually uses. A hit is not
  * just a green dot: each row knows which page drives that service, so the
@@ -447,16 +466,39 @@ function renderPorts() {
 function scanFinished(summary, error) {
   $("ps5-scan").disabled = false;
   $("ps5-stop").disabled = true;
-  if (error) { setPill("ps5-status", false, t("err.prefix") + error); return; }
-  if (summary.cancelled) { setPill("ps5-status", null, t("ps5.cancelled")); return; }
+  if (error) {
+    setPill("ps5-status", false, t("err.prefix") + error);
+    showVerdict(null);
+    return;
+  }
+  if (summary.cancelled) {
+    setPill("ps5-status", null, t("ps5.cancelled"));
+    return;
+  }
   setPill("ps5-status", summary.open > 0,
     t("ps5.result", { open: summary.open, total: summary.total }));
+  lastVerdict = summary.verdict || null;
+  showVerdict(lastVerdict);
+}
+
+let lastVerdict = null;
+
+function showVerdict(v) {
+  const box = $("ps5-verdict");
+  if (!v) { box.style.display = "none"; return; }
+  box.className = "verdict " + v.confidence;
+  box.style.display = "";
+  box.innerHTML = t(v.reason, { port: v.loader_port || "" });
+  // a confirmed loader is also the port payloads should go to
+  if (v.loader_port) $("pl-port").value = v.loader_port;
 }
 $("ps5-scan").onclick = async () => {
   const host = $("ps5-host").value.trim();
   if (!host) { setPill("ps5-status", false, t("msg.need_host")); return; }
+  setHost(host);
   $("ps5-rows").innerHTML = "";
   $("ps5-empty").style.display = "none";
+  showVerdict(null);
   scanRows = [];
   setPill("ps5-status", null, t("ps5.scanning"));
   $("ps5-scan").disabled = true; $("ps5-stop").disabled = false;
@@ -477,7 +519,11 @@ function demoScan() {
     { port: 9090, name: "Payload (alt)", note: "Alternate loader port", open: false, latency_ms: null },
   ];
   rows.forEach((r, i) => setTimeout(() => addPortRow(r), 120 * (i + 1)));
-  setTimeout(() => scanFinished({ open: 3, total: rows.length }), 120 * (rows.length + 1));
+  setTimeout(() => scanFinished({
+    open: 3, total: rows.length,
+    verdict: { is_ps5: true, confidence: "high", reason: "ps5.verdict.high",
+               loader_port: 9021, open_ports: [2121, 9021, 3232] },
+  }), 120 * (rows.length + 1));
 }
 
 /* ── FTP page ─────────────────────────────────────────── */
@@ -737,14 +783,13 @@ async function loadSettings() {
   $("set-threads").value = s.pfs_threads || 0;
   $("set-ffblock").value = s.ffpkg_block || 65536;
   $("set-fffrag").value = s.ffpkg_frag || 65536;
-  $("set-ps5host").value = s.ps5_host || "";
   $("set-ps5path").value = s.ps5_ftp_path || "";
   $("set-verify").classList.toggle("on", s.verify_after_build !== false);
   $("set-compress").classList.toggle("on", s.pfs_compress !== false);
   // seed the working pages from saved defaults
   if (s.output_dir && !$("output").value) $("output").value = s.output_dir;
   if (s.library_dirs && s.library_dirs.length) $("lib-folders").value = s.library_dirs.join(";");
-  ["ftp-host", "kl-host", "pl-host"].forEach(id => { if (s.ps5_host) $(id).value = s.ps5_host; });
+  if (s.ps5_host) setHost(s.ps5_host, { save: false });
   if (s.ps5_ftp_path) $("ftp-path").value = s.ps5_ftp_path;
   if (s.ps5_ftp_port) $("ftp-port").value = s.ps5_ftp_port;
   if (s.ps5_klog_port) $("kl-port").value = s.ps5_klog_port;

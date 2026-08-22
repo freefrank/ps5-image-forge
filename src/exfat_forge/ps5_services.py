@@ -115,5 +115,48 @@ def scan_host(host: str, *,
     return sorted(results.values(), key=lambda r: (not r.open, order.get(r.port, 999)))
 
 
+#: Ports that only a jailbroken console has any reason to be running. A
+#: bare TCP connect cannot prove what is on the other end, so the verdict is
+#: stated as confidence, never as fact — see :func:`identify`.
+LOADER_PORTS = (9021, 9020, 9090)
+
+
+@dataclass
+class Verdict:
+    """What the open ports suggest about the host that answered."""
+
+    is_ps5: bool
+    confidence: str          # high | likely | unlikely | none
+    reason: str              # i18n key the page renders
+    loader_port: int | None  # where payloads should go, when we found one
+    open_ports: list[int]
+
+
+def identify(results: list[PortResult]) -> Verdict:
+    """Read a scan as "is this a jailbroken PS5?".
+
+    9021 is the strong signal: it is etaHEN's elfldr, and nothing else puts
+    a listener there. The other loader ports and the FTP ports are weaker —
+    plenty of machines run an FTP server on 2121 — so they downgrade the
+    verdict rather than confirm it.
+    """
+    open_ports = [r.port for r in results if r.open]
+    if not open_ports:
+        return Verdict(False, "none", "ps5.verdict.none", None, [])
+
+    if 9021 in open_ports:
+        return Verdict(True, "high", "ps5.verdict.high", 9021, open_ports)
+
+    loader = next((p for p in LOADER_PORTS if p in open_ports), None)
+    if loader:
+        return Verdict(True, "likely", "ps5.verdict.likely", loader, open_ports)
+
+    if any(p in open_ports for p in (2121, 1337, 3232, 3233)):
+        return Verdict(False, "unlikely", "ps5.verdict.unlikely", None,
+                       open_ports)
+
+    return Verdict(False, "unlikely", "ps5.verdict.other", None, open_ports)
+
+
 def services_as_dicts() -> list[dict]:
     return [asdict(s) for s in KNOWN_SERVICES]

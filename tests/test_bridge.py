@@ -287,3 +287,23 @@ def test_klog_lines_arrive_batched() -> None:
     assert all(isinstance(a[0], list) for a in pushes)
     assert len(pushes) < len(lines) / 10, \
         f"{len(pushes)} pushes for {len(lines)} lines — not batching"
+
+
+def test_scan_reports_a_verdict_and_remembers_the_host() -> None:
+    b = RecordingBridge()
+    b.scan_ps5_ports("127.0.0.1", [1, 2])
+    deadline = time.monotonic() + 30
+    while b.last("onScanDone") is None and time.monotonic() < deadline:
+        time.sleep(0.05)
+    summary = b.last("onScanDone")[0]
+    assert summary["verdict"]["confidence"] == "none"
+    # the address typed in the Manager becomes the one every page uses
+    assert Bridge(window=None).get_settings()["ps5_host"] == "127.0.0.1"
+
+
+def test_set_ps5_host_persists_and_trims() -> None:
+    b = RecordingBridge()
+    assert b.set_ps5_host("  192.168.1.42 ")["host"] == "192.168.1.42"
+    assert Bridge(window=None).get_settings()["ps5_host"] == "192.168.1.42"
+    # an empty value must not wipe a good address
+    assert b.set_ps5_host("")["host"] == "192.168.1.42"

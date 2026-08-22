@@ -5,7 +5,7 @@ README 面向使用者，本文件面向继续开发的人（包括未来的我�
 
 - 版本：v0.3.0（开发中）
 - 更新日期：2026-08-22
-- 测试：`92 passed`（`.venv/Scripts/python.exe -m pytest tests/ -q`）
+- 测试：`100 passed`（`.venv/Scripts/python.exe -m pytest tests/ -q`）
 
 ---
 
@@ -142,7 +142,7 @@ python -m http.server 8899 -d src/exfat_forge/webui
 `--selftest` 除了跑一遍构建/校验/压缩，还会 `catalog.load()` ——
 **打包后数据文件丢没丢，只有冻结的 exe 能证明**，import 通过不代表 JSON 进了 bundle。
 
-92 个测试覆盖：镜像构建/校验/**腐蚀检测**/逐字节解包往返、三格式流水线、
+100 个测试覆盖：镜像构建/校验/**腐蚀检测**/逐字节解包往返、三格式流水线、
 设置与历史持久化（含损坏文件与旧版本字段）、库扫描、payload ELF 解析（含真实 PS5 payload）、
 PS5 协议与端口扫描（本地 socket 服务器模拟真实线路行为）、
 payload 目录与下载（含取消 / 失败不留残留文件 / 拒绝非 https）、GUI 全部后端接口（无窗口驱动）。
@@ -183,6 +183,19 @@ payload 目录与下载（含取消 / 失败不留残留文件 / 拒绝非 https
 **关键设计**：命中不只是一个绿点 —— `PS5_TARGET` 把端口映射到对应功能页，
 点开放行会把主机与端口填进那一页并跳转（2121/1337 → FTP，3232/3233 → 内核日志，
 9021/9020/9090 → Payload）。这是让 Manager 成为"主机总览与入口"而不是又一个端口扫描器的关键。
+
+**是不是 PS5**：`identify()` 把扫描结果读成一个结论。
+**9021 是强判据** —— 它是 etaHEN 的 elfldr，别的东西没理由占这个端口；
+命中即 `high`，并把 payload 页的端口设成它。
+其余 loader 端口（9020/9090）只给 `likely`；
+只有 FTP / 日志端口开放则明确判 `unlikely` —— 2121 上跑 FTP 的机器多得是，
+不能拿它当证据。一次 TCP connect 证明不了对端是什么，所以结论一律以**置信度**表述，
+不写成事实。判定文案是运行时按 key 取的，`test_every_verdict_key_is_translated`
+反查 `ps5_services.py` 里的 key 在 zh / en 两张表里都存在。
+
+**一台主机，四个页面**：Manager 里填的 IP 会同步进 FTP / 内核日志 / Payload
+和设置页，并存进 `settings.ps5_host`；反向也成立 —— 在任一页改 IP 都会同步到其余各页。
+目的是让 Manager 成为最后一次需要手打 IP 的地方。
 
 ### 5.2 Payload 目录（已完成）
 

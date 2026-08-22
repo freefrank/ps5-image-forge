@@ -111,3 +111,52 @@ def test_cancel_skips_the_probes() -> None:
 def test_default_scan_covers_every_known_service() -> None:
     results = svc.scan_host("127.0.0.1", timeout=0.3)
     assert {r.port for r in results} == {s.port for s in svc.KNOWN_SERVICES}
+
+
+# ── verdict ───────────────────────────────────────────────────────
+
+def _open(*ports: int) -> list[svc.PortResult]:
+    return [svc.PortResult(p, "k", "n", "payload", "", True, 1.0)
+            for p in ports]
+
+
+def test_9021_confirms_a_jailbroken_console() -> None:
+    v = svc.identify(_open(9021, 2121))
+    assert v.is_ps5 and v.confidence == "high" and v.loader_port == 9021
+
+
+def test_another_loader_port_is_only_likely() -> None:
+    v = svc.identify(_open(9090))
+    assert v.is_ps5 and v.confidence == "likely" and v.loader_port == 9090
+
+
+def test_ftp_alone_does_not_make_it_a_ps5() -> None:
+    # plenty of machines run an FTP server on 2121
+    v = svc.identify(_open(2121, 3232))
+    assert not v.is_ps5 and v.confidence == "unlikely" and v.loader_port is None
+
+
+def test_unrelated_ports_are_not_a_ps5() -> None:
+    assert svc.identify(_open(8080)).reason == "ps5.verdict.other"
+
+
+def test_silence_is_reported_as_silence() -> None:
+    v = svc.identify([svc.PortResult(9021, "k", "n", "payload", "", False, None)])
+    assert not v.is_ps5 and v.confidence == "none" and v.open_ports == []
+
+
+def test_every_verdict_key_is_translated() -> None:
+    """The verdict text is picked at runtime, so the key check must be too."""
+    import re
+    from pathlib import Path
+
+    src = Path(svc.__file__).read_text(encoding="utf-8")
+    keys = set(re.findall(r'"(ps5\.verdict\.[a-z]+)"', src))
+    assert keys, "no verdict keys found — did they get renamed?"
+
+    i18n_js = (Path(svc.__file__).parent / "webui" / "i18n.js").read_text(
+        encoding="utf-8")
+    for table in ("en", "zh"):
+        section = i18n_js.split(f"  {table}: {{", 1)[1]
+        for key in keys:
+            assert f'"{key}"' in section, f"{key} missing from the {table} table"

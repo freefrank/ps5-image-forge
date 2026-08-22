@@ -271,6 +271,7 @@ class Bridge:
         if self._scanning and self._scanning.is_alive():
             return {"ok": False, "error": "scan already running"}
 
+        self.set_ps5_host(host)
         wanted = [int(p) for p in ports] if ports else None
         self._scan_cancel = threading.Event()
         cancel = self._scan_cancel
@@ -283,11 +284,13 @@ class Bridge:
             except Exception as exc:                    # DNS, bad host, ...
                 self._js("onScanError", str(exc))
                 return
+            verdict = ps5_services.identify(results)
             self._js("onScanDone", {
                 "host": host,
                 "open": sum(1 for r in results if r.open),
                 "total": len(results),
                 "cancelled": cancel.is_set(),
+                "verdict": asdict(verdict),
             })
 
         self._scanning = threading.Thread(target=run, daemon=True)
@@ -297,6 +300,17 @@ class Bridge:
     def cancel_scan(self) -> None:
         if self._scan_cancel:
             self._scan_cancel.set()
+
+    def set_ps5_host(self, host: str) -> dict:
+        """One console address, shared by the FTP, kernel-log and payload pages.
+
+        Typing it in the Manager is meant to be the last time you type it.
+        """
+        host = (host or "").strip()
+        if host and host != self._settings.ps5_host:
+            self._settings.ps5_host = host
+            self._settings.save()
+        return {"ok": True, "host": self._settings.ps5_host}
 
     def ps5_list(self, host: str, port: int, path: str) -> dict:
         try:
