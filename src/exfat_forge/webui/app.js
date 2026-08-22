@@ -80,6 +80,37 @@ function goto(page) {
 $$(".nav").forEach(n => n.onclick = () => goto(n.dataset.page));
 $$("[data-goto]").forEach(c => c.onclick = () => goto(c.dataset.goto));
 
+/* ── window drag ──────────────────────────────────────── */
+/* pywebview moves the window with one synchronous IPC call per mousemove.
+ * A mouse reports 125-1000 times a second and each call costs about 1.3 ms,
+ * so an untouched drag saturates the UI thread: the window lags behind the
+ * cursor and clicks queue up behind the backlog. Two fixes here — throttle
+ * the moves to one per frame, and stop painting animations while dragging. */
+(() => {
+  const MIN_GAP_MS = 8;          // 125 moves/s ceiling — still fluid, 8x cheaper
+  const root = document.documentElement;
+  let dragging = false, last = 0;
+  const stop = () => { dragging = false; root.classList.remove("dragging"); };
+
+  document.querySelector(".pywebview-drag-region")
+    .addEventListener("mousedown", () => {
+      dragging = true; last = 0; root.classList.add("dragging");
+    });
+  window.addEventListener("mouseup", stop);
+  window.addEventListener("blur", stop);
+
+  // Capture phase, so this runs before pywebview's own window-level handler
+  // and can drop the event before it becomes an IPC call. Gated on a clock
+  // rather than requestAnimationFrame: rAF stops firing when the window is
+  // hidden or occluded, and a gate that never reopens would eat the drag.
+  window.addEventListener("mousemove", ev => {
+    if (!dragging) return;
+    const now = performance.now();
+    if (now - last < MIN_GAP_MS) { ev.stopImmediatePropagation(); return; }
+    last = now;
+  }, true);
+})();
+
 /* ── window buttons ───────────────────────────────────── */
 $("win-min").onclick = () => { const b = bridge(); if (b) b.minimize(); };
 $("win-max").onclick = () => { const b = bridge(); if (b) b.toggle_maximize(); };

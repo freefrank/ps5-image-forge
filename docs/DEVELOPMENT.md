@@ -102,7 +102,21 @@ entry.py
 2. **不需要管理员权限**。任何需要提权的路径都必须是可选功能，且失败时能优雅降级。
 3. **不挂载、不占盘符**。
 4. **只删自己创建的文件**。产物先写 `.part`，成功后 `os.replace` 原子改名；失败时只清理这个 `.part`。
-5. **子进程 stdio 强制 UTF-8**（`PYTHONIOENCODING=utf-8:replace` + `reconfigure`）。
+5. **`Bridge` 上任何不该给 JS 的东西都必须下划线开头。**
+   pywebview 6.x 生成 JS API 时会**递归遍历 js_api 对象的每个公有属性**
+   （`webview/util.py: get_functions`）。一个普通的 `self.window` 会让它一路钻进
+   WinForms 控件树：176 KB 递归错误日志、暴露名从 34 个膨胀到 120 个，
+   而且这发生在**每次页面加载**。`self._window` / `self._settings` 就没事。
+6. **拖动期间不许有全屏动画，mousemove 必须节流。**
+   pywebview 的无边框拖动是**每个 mousemove 一次同步 IPC**，实测约 1.3 ms 一次；
+   鼠标报告率 125–1000 Hz，不节流就会打满 UI 线程 —— 窗口跟不上光标，
+   点击排在积压后面（"关闭按钮没反应"就是这么来的）。
+   现在：`app.js` 在**捕获阶段**按 8 ms 时钟丢弃多余 mousemove（不用 rAF ——
+   窗口被遮挡时 rAF 停摆，闸门永不重开会把整个拖动吃掉），
+   同时 `html.dragging` 暂停所有动画与过渡。
+   扫描线也从动画 `background-position`（每帧全屏重绘）改成独立层上的
+   `transform`（GPU 合成，不重绘）。
+7. **子进程 stdio 强制 UTF-8**（`PYTHONIOENCODING=utf-8:replace` + `reconfigure`）。
    MkPFS 会打印 🎉，中文 Windows 的 GBK 控制台会 `UnicodeEncodeError` 直接把冻结进程卡死。
 
 ---

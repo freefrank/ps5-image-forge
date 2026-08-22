@@ -36,16 +36,27 @@ body::before {   /* CRT lines */
   content: ""; position: fixed; inset: 0; z-index: 60; pointer-events: none;
   background: repeating-linear-gradient(0deg, rgba(0,0,0,.16) 0 1px, transparent 1px 3px);
 }
-body::after {    /* scan sweep */
-  content: ""; position: fixed; inset: 0; z-index: 61; pointer-events: none;
+/* Scan sweep. Animating background-position repainted the entire viewport
+   every frame, which the window-drag loop (one IPC per mousemove) cannot
+   afford. A transform on its own layer is composited instead — same look,
+   no repaint. */
+#sweep {
+  position: fixed; left: 0; right: 0; top: 0; height: 240px; z-index: 61;
+  pointer-events: none; will-change: transform;
   background: linear-gradient(180deg, transparent 0%, rgba(0,229,255,.05) 48%,
     rgba(0,229,255,.11) 50%, rgba(0,229,255,.05) 52%, transparent 100%);
-  background-size: 100% 240px; background-repeat: no-repeat;
   animation: sweep 8s linear infinite;
 }
 @keyframes sweep {
-  0% { background-position: 0 -240px; }
-  100% { background-position: 0 calc(100vh + 240px); }
+  from { transform: translate3d(0, -240px, 0); }
+  to   { transform: translate3d(0, 100vh, 0); }
+}
+
+/* While the window is being dragged nothing may animate: every frame spent
+   painting here is a frame the move loop does not get. */
+html.dragging *, html.dragging *::before, html.dragging *::after {
+  animation-play-state: paused !important;
+  transition: none !important;
 }
 
 /* ── title bar ───────────────────────────────────────────── */

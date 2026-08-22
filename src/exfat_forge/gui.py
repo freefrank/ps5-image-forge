@@ -31,7 +31,7 @@ def main() -> int:
         background_color="#070b14",
         frameless=True, easy_drag=False,   # the header carries the drag region
     )
-    api.window = window
+    api._window = window
     webview.start()
     return 0
 

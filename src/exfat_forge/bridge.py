@@ -26,8 +26,13 @@ class Bridge:
     """Backend surface exposed to the page."""
 
     def __init__(self, window=None) -> None:
-        self.window = window
-        self.settings = Settings.load()
+        # Everything the page must not see stays underscored: pywebview 6.x
+        # builds its JS API by walking every public attribute of this object
+        # recursively, so a plain ``self.window`` sends it down the whole
+        # WinForms control tree — a huge malformed function table that makes
+        # each call slow and shadows real methods.
+        self._window = window
+        self._settings = Settings.load()
         self._worker: threading.Thread | None = None
         self._cancel: core.CancelToken | None = None
         self._klog: ps5.KernelLog | None = None
@@ -39,12 +44,12 @@ class Bridge:
     # ── plumbing ──────────────────────────────────────────────────
 
     def _js(self, fn: str, *args) -> None:
-        if self.window is None:
+        if self._window is None:
             return
         payload = ", ".join(json.dumps(a, ensure_ascii=False, default=str)
                             for a in args)
         try:
-            self.window.evaluate_js(f"window.forge.{fn}({payload})")
+            self._window.evaluate_js(f"window.forge.{fn}({payload})")
         except Exception:
             pass          # window closing
 
@@ -79,29 +84,29 @@ class Bridge:
     # ── window ────────────────────────────────────────────────────
 
     def minimize(self) -> None:
-        if self.window:
-            self.window.minimize()
+        if self._window:
+            self._window.minimize()
 
     def toggle_maximize(self) -> None:
-        if self.window:
-            self.window.toggle_fullscreen()
+        if self._window:
+            self._window.toggle_fullscreen()
 
     def close(self) -> None:
         if self._klog:
             self._klog.stop()
-        if self.window:
-            self.window.destroy()
+        if self._window:
+            self._window.destroy()
 
     # ── settings ──────────────────────────────────────────────────
 
     def get_settings(self) -> dict:
-        data = self.settings.as_dict()
+        data = self._settings.as_dict()
         data["lang"] = i18n.get_locale()
         return data
 
     def save_settings(self, values: dict) -> dict:
-        self.settings.update(values)
-        self.settings.save()
+        self._settings.update(values)
+        self._settings.save()
         if values.get("lang"):
             i18n.set_locale(values["lang"])
         return self.get_settings()
@@ -111,8 +116,8 @@ class Bridge:
 
     def set_lang(self, lang: str) -> None:
         i18n.set_locale(lang)
-        self.settings.lang = lang
-        self.settings.save()
+        self._settings.lang = lang
+        self._settings.save()
 
     def environment(self) -> dict:
         """Capability report shown on the Home dashboard."""
@@ -128,25 +133,25 @@ class Bridge:
 
     def pick_folder(self) -> str | None:
         import webview
-        if not self.window:
+        if not self._window:
             return None
-        res = self.window.create_file_dialog(webview.FOLDER_DIALOG)
+        res = self._window.create_file_dialog(webview.FOLDER_DIALOG)
         return (res[0] if isinstance(res, (list, tuple)) else res) if res else None
 
     def pick_file(self, patterns: list[str] | None = None) -> str | None:
         import webview
-        if not self.window:
+        if not self._window:
             return None
         types = tuple(patterns) if patterns else (
             "Game images (*.exfat;*.ffpkg;*.ffpfsc)", "All files (*.*)")
-        res = self.window.create_file_dialog(webview.OPEN_DIALOG,
+        res = self._window.create_file_dialog(webview.OPEN_DIALOG,
                                              file_types=types)
         return (res[0] if isinstance(res, (list, tuple)) else res) if res else None
 
     # ── library ───────────────────────────────────────────────────
 
     def scan_library(self, folders: list[str] | None = None) -> dict:
-        dirs = folders if folders is not None else self.settings.library_dirs
+        dirs = folders if folders is not None else self._settings.library_dirs
         dumps, images = library.scan_folders(dirs)
         return {"dumps": [asdict(d) for d in dumps],
                 "images": [asdict(i) for i in images]}
@@ -318,16 +323,16 @@ class Bridge:
 
     def scan_payloads(self, folder: str = "") -> dict:
         """Describe every payload in ``folder`` (defaults to the saved one)."""
-        target = folder.strip('" ') or self.settings.payload_dir
+        target = folder.strip('" ') or self._settings.payload_dir
         if not target:
             return {"ok": False, "error": "no folder selected", "items": []}
         try:
             items = payloads.scan(Path(target))
         except payloads.PayloadError as exc:
             return {"ok": False, "error": str(exc), "items": []}
-        if target != self.settings.payload_dir:
-            self.settings.payload_dir = target
-            self.settings.save()
+        if target != self._settings.payload_dir:
+            self._settings.payload_dir = target
+            self._settings.save()
         return {"ok": True, "folder": target, "items": payloads.as_dicts(items)}
 
     def describe_payload(self, path: str) -> dict:
@@ -353,7 +358,7 @@ class Bridge:
     def download_catalog_payload(self, entry_id: str, folder: str = "",
                                  overwrite: bool = False) -> dict:
         """Fetch one catalogue entry into the user's payload folder."""
-        target = (folder or "").strip('" ') or self.settings.payload_dir
+        target = (folder or "").strip('" ') or self._settings.payload_dir
         if not target:
             return {"ok": False, "error": "no payload folder selected"}
         try:
