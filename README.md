@@ -66,6 +66,7 @@ exfat-forge verify D:\PS5\PPSA21564.exfat --source E:\PPSA21564-app0
 exfat-forge extract D:\PS5\PPSA21564.ffpfsc D:\unpacked
 exfat-forge list D:\PS5\PPSA21564.exfat
 exfat-forge history
+exfat-forge catalog
 ```
 
 CLI 消息跟随系统语言，`EXFAT_FORGE_LANG=en|zh` 可覆盖。

@@ -71,7 +71,7 @@ entry.py
 | `ps5_services.py` | 119 | 已知服务端口表、单机并发扫描 | `test_ps5_services.py` | ✅ |
 | `catalog.py` | 161 | payload 目录读取与按需下载 | `test_catalog.py` | ✅ |
 | `bridge.py` | 425 | JS API（34 个方法） | `test_bridge.py` | ✅ |
-| `cli.py` | 190 | env/build/verify/extract/list/history | — | 手工验证 |
+| `cli.py` | 205 | env/build/verify/extract/list/history/catalog | — | 手工验证 |
 | `i18n.py` | 88 | 后端消息本地化 | — | 随其他测试覆盖 |
 | `webui/` | 1240 | 12 个页面 + 赛博朋克样式 + 前端 i18n | demo 模式 | ✅ |
 
@@ -122,6 +122,9 @@ UI 单独开发（无后端时进 demo 模式，用合成数据渲染全部界�
 ```bash
 python -m http.server 8899 -d src/exfat_forge/webui
 ```
+
+`--selftest` 除了跑一遍构建/校验/压缩，还会 `catalog.load()` ——
+**打包后数据文件丢没丢，只有冻结的 exe 能证明**，import 通过不代表 JSON 进了 bundle。
 
 91 个测试覆盖：镜像构建/校验/**腐蚀检测**/逐字节解包往返、三格式流水线、
 设置与历史持久化（含损坏文件与旧版本字段）、库扫描、payload ELF 解析（含真实 PS5 payload）、

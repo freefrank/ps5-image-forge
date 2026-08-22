@@ -25,7 +25,7 @@ def _selftest() -> int:
     import tempfile
     from pathlib import Path
 
-    from . import core
+    from . import catalog, core
 
     with tempfile.TemporaryDirectory(prefix="forge_selftest_") as td:
         tmp = Path(td)
@@ -40,6 +40,8 @@ def _selftest() -> int:
         core.verify_image(image, src)
         pfs = core.pack_pfs(image, compress=True, compression_level=6)
         assert pfs.stat().st_size > 0
+    # data files must survive freezing, not just import
+    assert catalog.load(), "payload catalog missing from the bundle"
     return 0
 
 

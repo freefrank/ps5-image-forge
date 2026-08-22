@@ -80,6 +80,18 @@ def cmd_history(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_catalog(args: argparse.Namespace) -> int:
+    """List the payload catalogue. Metadata only — nothing is downloaded."""
+    from . import catalog
+    entries = catalog.load()
+    print(f"{len(entries)} entries · metadata from {catalog.metadata_source()}")
+    for e in entries:
+        fw = " ".join(e.firmwares) if e.firmwares else "all"
+        how = e.binary_url or f"(page) {e.page_url}"
+        print(f"  {e.id:30} v{e.version:12} fw={fw:22} {how}")
+    return 0
+
+
 def cmd_env(args: argparse.Namespace) -> int:
     dn = ufs.dotnet_status()
     print(f"exfat/pfs : available (built in)")
@@ -170,6 +182,9 @@ def main(argv: list[str] | None = None) -> int:
     h.add_argument("--limit", type=int, default=20)
     h.add_argument("--clear", action="store_true")
     h.set_defaults(fn=cmd_history)
+
+    cat = sub.add_parser("catalog", help="list the payload catalogue")
+    cat.set_defaults(fn=cmd_catalog)
 
     en = sub.add_parser("env", help="report available image formats")
     en.set_defaults(fn=cmd_env)
