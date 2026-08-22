@@ -179,7 +179,6 @@ $("ex-pick-image").onclick = () => pickInto("ex-image", "file");
 $("ex-pick-dest").onclick = () => pickInto("ex-dest", "dir");
 $("in-pick").onclick = () => pickInto("in-image", "file");
 $("ftp-pick").onclick = () => pickInto("ftp-file", "file");
-$("pl-pick").onclick = () => pickInto("pl-file", "file", ["ELF payload (*.elf;*.bin)", "All files (*.*)"]);
 $("lib-add").onclick = async () => {
   const b = bridge(); if (!b) return;
   const p = await b.pick_folder();
@@ -404,15 +403,111 @@ $("kl-stop").onclick = () => {
 $("kl-clear").onclick = () => $("kl-log").innerHTML = "";
 
 /* ── PAYLOAD page ─────────────────────────────────────── */
-$("pl-send").onclick = async () => {
-  const host = $("pl-host").value.trim(), file = $("pl-file").value.trim();
-  if (!host) { log("pl-log", t("msg.need_host"), "err"); return; }
-  if (!file) { log("pl-log", t("msg.need_image"), "err"); return; }
+let plItems = [], plSel = null;
+
+$("pl-pick-dir").onclick = async () => {
   const b = bridge(); if (!b) return;
-  const r = await b.ps5_send_payload(host, +$("pl-port").value, file);
-  log("pl-log", r.ok ? `✓ ${r.sent.toLocaleString()} bytes` : t("err.prefix") + r.error,
-      r.ok ? "ok" : "err");
+  const p = await b.pick_folder();
+  if (p) { $("pl-dir").value = p; scanPayloads(); }
 };
+$("pl-scan").onclick = () => scanPayloads();
+
+async function scanPayloads() {
+  const b = bridge();
+  if (!b) { plItems = demoPayloads(); renderPayloads(); return; }
+  const r = await b.scan_payloads($("pl-dir").value.trim());
+  if (!r.ok) { log("pl-log", t("msg.scan_failed") + r.error, "err"); return; }
+  if (r.folder) $("pl-dir").value = r.folder;
+  plItems = r.items || [];
+  renderPayloads();
+  log("pl-log", `${plItems.length} payload(s)`, "ok");
+}
+
+function renderPayloads() {
+  $("pl-list").innerHTML = plItems.map((p, i) => `<tr data-i="${i}">
+    <td>${esc(p.name)}${p.version ? ` <span class="pd-ver">${esc(p.version)}</span>` : ""}
+        ${p.warning ? ' <span style="color:var(--warn)">⚠</span>' : ""}</td>
+    <td><div class="caps">${(p.capabilities || []).slice(0, 3)
+        .map(c => `<span class="cap ${esc(c)}">${esc(c)}</span>`).join("")}</div></td>
+    <td class="num">${human(p.size_bytes)}</td></tr>`).join("");
+  $("pl-empty").style.display = plItems.length ? "none" : "";
+  $$("#pl-list tr").forEach(tr => tr.onclick = () => {
+    $$("#pl-list tr").forEach(x => x.classList.remove("sel"));
+    tr.classList.add("sel");
+    selectPayload(plItems[+tr.dataset.i]);
+  });
+  if (!plItems.length) {
+    plSel = null; $("pl-send").disabled = true;
+    $("pl-detail").innerHTML = `<div class="empty">${t("payload.pick")}</div>`;
+  }
+}
+
+function selectPayload(p) {
+  plSel = p;
+  $("pl-send").disabled = false;
+  const kv = (k, v) => v ? `<dt>${t(k)}</dt><dd>${esc(v)}</dd>` : "";
+  const srcLabel = p.source === "notes" ? t("pd.source.notes")
+                 : p.source === "elf" ? t("pd.source.elf") : p.source;
+  $("pl-detail").innerHTML = `
+    <div class="pd-name">${esc(p.name)}${p.version ? `<span class="pd-ver">v${esc(p.version)}</span>` : ""}</div>
+    ${p.warning ? `<div class="pd-warn">⚠ ${esc(p.warning)}</div>` : ""}
+    <dl class="kv">
+      ${kv("pd.file", p.filename)}
+      ${kv("pd.size", human(p.size_bytes) + " · " + p.modified)}
+      ${kv("pd.format", p.is_elf ? `${p.elf_class} ${p.elf_type} · ${p.machine} · ${p.osabi}` : "—")}
+      ${kv("pd.entry", p.entry)}
+      ${kv("pd.buildid", p.build_id)}
+      ${kv("pd.toolchain", p.toolchain)}
+    </dl>
+    ${(p.capabilities || []).length ? `<dl class="kv"><dt>${t("pd.caps")}</dt>
+      <dd><div class="caps">${p.capabilities.map(c =>
+        `<span class="cap ${esc(c)}">${esc(c)}</span>`).join("")}</div></dd></dl>` : ""}
+    <div class="pd-src">${t("pd.desc")} — ${esc(srcLabel)}</div>
+    <div class="pd-desc">${esc(p.description || "—")}</div>
+    <div class="pd-src" style="margin-top:8px">${t("pd.notes")}</div>
+    <textarea id="pl-note" spellcheck="false">${esc(p.source === "notes" ? p.description : "")}</textarea>
+    <div class="actions" style="margin-top:6px">
+      <button id="pl-savenote">${t("btn.savenote")}</button>
+    </div>
+    ${(p.strings_sample || []).length ? `<div class="pd-src" style="margin-top:8px">${t("pd.strings")}</div>
+      <div class="pd-strings">${p.strings_sample.map(esc).join("<br>")}</div>` : ""}`;
+
+  $("pl-savenote").onclick = async () => {
+    const b = bridge(); if (!b) return;
+    await b.save_payload_note(p.path, $("pl-note").value);
+    log("pl-log", t("msg.note_saved"), "ok");
+    scanPayloads();
+  };
+}
+
+$("pl-send").onclick = async () => {
+  const host = $("pl-host").value.trim();
+  if (!host) { log("pl-log", t("msg.need_host"), "err"); return; }
+  if (!plSel) { log("pl-log", t("payload.pick"), "err"); return; }
+  const b = bridge(); if (!b) return;
+  const r = await b.ps5_send_payload(host, +$("pl-port").value, plSel.path);
+  log("pl-log", r.ok ? `✓ ${plSel.name} — ${r.sent.toLocaleString()} bytes`
+                     : t("err.prefix") + r.error, r.ok ? "ok" : "err");
+};
+
+function demoPayloads() {
+  return [
+    { path: "D:\payloads\goldhen.elf", name: "GoldHEN", version: "2.4.2",
+      filename: "goldhen.elf", size_bytes: 1_204_000, modified: "2026-08-01 12:00",
+      is_elf: true, elf_class: "ELF64", elf_type: "DYN", machine: "x86-64",
+      osabi: "FreeBSD", entry: "0x40", build_id: "a1b2c3d4e5f6",
+      toolchain: "clang version 18.1.3", capabilities: ["ftp", "mount", "debug"],
+      description: "Homebrew enabler with FTP and debug support.", source: "elf",
+      strings_sample: ["/mnt/sandbox/app0", "ftpsrv listening on 2121"], warning: "" },
+    { path: "D:\payloads\ps5-backpork.elf", name: "backpork", version: "",
+      filename: "ps5-backpork.elf", size_bytes: 99_800, modified: "2026-08-22 05:54",
+      is_elf: true, elf_class: "ELF64", elf_type: "DYN", machine: "x86-64",
+      osabi: "FreeBSD", entry: "0x40", build_id: "d5d731ddd171e9be",
+      toolchain: "Ubuntu clang version 18.1.3", capabilities: ["mount", "backport", "net"],
+      description: "ELF64 DYN · x86-64 · FreeBSD · capabilities: mount, backport, net",
+      source: "elf", strings_sample: ["libSceFsInternalForVsh.sprx", "/user/homebrew/lib/%s"], warning: "" },
+  ];
+}
 
 /* ── SETTINGS page ────────────────────────────────────── */
 async function loadSettings() {
@@ -420,7 +515,7 @@ async function loadSettings() {
   const s = await b.get_settings();
   $("set-output").value = s.output_dir || "";
   $("set-libdirs").value = (s.library_dirs || []).join(";");
-  $("set-cluster").value = String(s.cluster_size || 0);
+  $("set-cluster").value = String(s.cluster_size == null ? 65536 : s.cluster_size);
   $("set-level").value = s.pfs_level || 9;
   $("set-level-val").textContent = s.pfs_level || 9;
   $("set-threads").value = s.pfs_threads || 0;
@@ -438,6 +533,7 @@ async function loadSettings() {
   if (s.ps5_ftp_port) $("ftp-port").value = s.ps5_ftp_port;
   if (s.ps5_klog_port) $("kl-port").value = s.ps5_klog_port;
   if (s.ps5_payload_port) $("pl-port").value = s.ps5_payload_port;
+  if (s.payload_dir) { $("pl-dir").value = s.payload_dir; scanPayloads(); }
 }
 $("set-verify").onclick = () => $("set-verify").classList.toggle("on");
 $("set-compress").onclick = () => $("set-compress").classList.toggle("on");
@@ -539,6 +635,7 @@ async function init() {
     setPill("pill-ffpkg", true, "ffpkg · demo");
     $("pill-version").querySelector("span:last-child").textContent = "v0.3.0";
     renderLibrary(demoLibrary());
+    plItems = demoPayloads(); renderPayloads();
     lastHistory = demoHistory();
     refreshHome();
   }

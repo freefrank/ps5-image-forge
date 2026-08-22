@@ -128,7 +128,7 @@ def main(argv: list[str] | None = None) -> int:
     b.add_argument("-o", "--output",
                    help="output file or directory (default: next to source)")
     b.add_argument("--cluster", type=int,
-                   help="cluster size in bytes (default: auto)")
+                   help="cluster size in bytes (default: 65536; 0 = auto)")
     b.add_argument("-f", "--format", default="exfat",
                    choices=["exfat", "ffpkg", "pfs"],
                    help="output format (default: exfat)")

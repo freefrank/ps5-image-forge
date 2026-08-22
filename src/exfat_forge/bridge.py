@@ -17,7 +17,7 @@ import traceback
 from dataclasses import asdict
 from pathlib import Path
 
-from . import core, i18n, library, pipeline, ps5, ufs
+from . import core, i18n, library, payloads, pipeline, ps5, ufs
 from .settings import History, Settings
 
 
@@ -265,6 +265,32 @@ class Bridge:
                                     cancel=self._cancel)
                 self._log(i18n.t("upload.ok", path=remote), "ok")
         self._js("onDone", i18n.t("upload.all", count=len(files)))
+
+    # ── payload library ───────────────────────────────────────────
+
+    def scan_payloads(self, folder: str = "") -> dict:
+        """Describe every payload in ``folder`` (defaults to the saved one)."""
+        target = folder.strip('" ') or self.settings.payload_dir
+        if not target:
+            return {"ok": False, "error": "no folder selected", "items": []}
+        try:
+            items = payloads.scan(Path(target))
+        except payloads.PayloadError as exc:
+            return {"ok": False, "error": str(exc), "items": []}
+        if target != self.settings.payload_dir:
+            self.settings.payload_dir = target
+            self.settings.save()
+        return {"ok": True, "folder": target, "items": payloads.as_dicts(items)}
+
+    def describe_payload(self, path: str) -> dict:
+        try:
+            return {"ok": True, **asdict(payloads.describe(Path(path)))}
+        except OSError as exc:
+            return {"ok": False, "error": str(exc)}
+
+    def save_payload_note(self, path: str, note: str) -> dict:
+        payloads.save_note(path, note)
+        return {"ok": True}
 
     def ps5_send_payload(self, host: str, port: int, payload: str) -> dict:
         try:

@@ -257,3 +257,30 @@ footer { color: var(--text-dim); font-size: 9.5px; letter-spacing: 1.5px;
   padding: 6px 16px; display: flex; justify-content: space-between;
   border-top: 1px solid rgba(0,229,255,.12); }
 footer .demo { color: var(--amber); }
+
+/* ── payload details ─────────────────────────────────────── */
+.kv { display: grid; grid-template-columns: 88px 1fr; gap: 3px 10px;
+  font-size: 11.5px; margin-bottom: 9px; }
+.kv dt { color: var(--text-dim); font-size: 10.5px; }
+.kv dd { color: var(--text); word-break: break-all; }
+.caps { display: flex; gap: 5px; flex-wrap: wrap; }
+.cap { padding: 1px 7px; font-size: 9px; letter-spacing: 1px;
+  border: 1px solid var(--violet); color: var(--violet); }
+.cap.backport, .cap.jailbreak { border-color: var(--magenta); color: var(--magenta); }
+.cap.ftp, .cap.net, .cap.http { border-color: var(--cyan); color: var(--cyan); }
+.pd-name { color: var(--cyan); font-size: 15px; letter-spacing: 2px;
+  text-shadow: 0 0 8px rgba(0,229,255,.6); margin-bottom: 2px; }
+.pd-ver { color: var(--amber); font-size: 11px; margin-left: 8px; }
+.pd-warn { color: var(--warn); font-size: 10.5px; margin: 6px 0;
+  border-left: 2px solid var(--warn); padding-left: 7px; }
+.pd-desc { color: var(--text); font-size: 11.5px; line-height: 1.55;
+  border-left: 2px solid var(--cyan-dim); padding-left: 8px; margin: 7px 0;
+  white-space: pre-wrap; }
+.pd-src { color: var(--text-dim); font-size: 9.5px; letter-spacing: 1px; }
+textarea { width: 100%; background: rgba(0,10,20,.7); border: 1px solid var(--cyan-dim);
+  color: var(--text); font: inherit; font-size: 11.5px; padding: 6px 8px;
+  outline: none; resize: vertical; min-height: 46px; }
+textarea:focus { border-color: var(--cyan); box-shadow: 0 0 9px rgba(0,229,255,.3); }
+.pd-strings { max-height: 108px; overflow-y: auto; font-size: 10.5px;
+  color: var(--text-dim); line-height: 1.5; margin-top: 5px;
+  scrollbar-width: thin; scrollbar-color: var(--cyan-dim) transparent; }

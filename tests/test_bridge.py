@@ -187,3 +187,26 @@ def test_ps5_send_payload_failure_returns_error(tmp_path: Path) -> None:
     bad.write_bytes(b"not an elf at all")
     res = RecordingBridge().ps5_send_payload("127.0.0.1", 1, str(bad))
     assert res["ok"] is False
+
+
+def test_payload_library_scan_and_notes(tmp_path: Path) -> None:
+    lib = tmp_path / "payloads"
+    lib.mkdir()
+    # minimal valid ELF64 header is enough for the bridge round trip
+    (lib / "a.elf").write_bytes(b"\x7fELF\x02\x01\x01\x09" + b"\0" * 120)
+    (lib / "a.txt").write_text("does a thing", encoding="utf-8")
+
+    b = RecordingBridge()
+    r = b.scan_payloads(str(lib))
+    assert r["ok"] and len(r["items"]) == 1
+    item = r["items"][0]
+    assert item["description"] == "does a thing"
+    assert b.get_settings()["payload_dir"] == str(lib)
+
+    b.save_payload_note(item["path"], "mine")
+    assert b.scan_payloads(str(lib))["items"][0]["source"] == "notes"
+
+
+def test_payload_scan_reports_bad_folder(tmp_path: Path) -> None:
+    r = RecordingBridge().scan_payloads(str(tmp_path / "missing"))
+    assert r["ok"] is False and r["items"] == []

@@ -140,15 +140,27 @@ def default_output_name(source: Path) -> str:
     return f"{title_id or source.name}.exfat"
 
 
+#: exFAT allocation unit used when the caller does not pick one. mkpfs would
+#: otherwise choose per-tree (32K, or 64K for large-average-file sets); PS5
+#: game dumps are overwhelmingly large-file, and a fixed 64K keeps cluster
+#: overhead low and image sizes reproducible across builds.
+DEFAULT_CLUSTER_SIZE = 65536
+
+
 def build_exfat(source: Path, output: Path, *,
                 cluster_size: int | None = None,
                 progress: ProgressFn | None = None,
                 cancel: CancelToken | None = None) -> Path:
     """Write an exFAT image of ``source`` to ``output`` (file or directory).
 
+    ``cluster_size`` defaults to :data:`DEFAULT_CLUSTER_SIZE` (64 KiB); pass
+    an explicit size to override it.
+
     Writes to ``<output>.part`` first and renames into place only on success,
     so no failure mode can leave a truncated image under the final name.
     """
+    if cluster_size is None:
+        cluster_size = DEFAULT_CLUSTER_SIZE
     if output.is_dir():
         output = output / default_output_name(source)
     output.parent.mkdir(parents=True, exist_ok=True)
