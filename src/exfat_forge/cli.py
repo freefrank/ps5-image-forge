@@ -10,6 +10,7 @@ from pathlib import Path
 from mkpfs.exfat import open_exfat, render_exfat_tree
 
 from . import core
+from .i18n import t as _
 
 
 def _fmt_gb(n: int) -> str:
@@ -49,32 +50,32 @@ def cmd_build(args: argparse.Namespace) -> int:
     t0 = time.monotonic()
 
     info = core.scan_source(source, progress)
-    print(f"[scan] {info.file_count:,} files, {info.dir_count:,} dirs, "
-          f"{_fmt_gb(info.total_bytes)}"
+    print(_("scan.done", files=info.file_count, dirs=info.dir_count,
+            size=_fmt_gb(info.total_bytes))
           + (f"  [{info.title_id} {info.title or ''} {info.version or ''}]"
              if info.title_id else ""))
 
     image = core.build_exfat(source, output,
                              cluster_size=args.cluster, progress=progress)
-    print(f"[write] image: {image}")
+    print(_("write.image", path=image))
 
     if not args.no_verify:
         files, total = core.verify_image(image, source, progress=progress)
-        print(f"[verify] OK — {files:,} files, {_fmt_gb(total)}")
+        print(_("verify.ok", files=files, size=_fmt_gb(total)))
 
     if args.pfs:
         pfs = core.pack_pfs(image, compress=args.compress,
                             compression_level=args.level,
                             threads=args.threads, progress=progress)
-        ratio = pfs.stat().st_size / max(1, image.stat().st_size)
-        print(f"[pfs] {pfs}  ({_fmt_gb(pfs.stat().st_size)}, "
-              f"{ratio * 100:.0f}% of exFAT)")
+        ratio = 100 * pfs.stat().st_size / max(1, image.stat().st_size)
+        print(_("pfs.result", path=pfs, size=_fmt_gb(pfs.stat().st_size),
+                ratio=ratio))
         if not args.keep_exfat:
             image.unlink()
-            print(f"[pfs] removed intermediate {image.name}")
+            print(_("pfs.removed", name=image.name))
 
     mins, secs = divmod(int(time.monotonic() - t0), 60)
-    print(f"[done] {mins}m {secs:02d}s")
+    print(_("done", mins=mins, secs=secs))
     return 0
 
 
@@ -83,8 +84,8 @@ def cmd_verify(args: argparse.Namespace) -> int:
     source = Path(args.source) if args.source else None
     files, total = core.verify_image(image, source,
                                      progress=_console_progress())
-    print(f"[verify] OK — {files:,} files, {_fmt_gb(total)}"
-          + ("" if source else "  (structure only; pass --source to compare)"))
+    print(_("verify.ok", files=files, size=_fmt_gb(total))
+          + ("" if source else _("verify.structure_only")))
     return 0
 
 
@@ -92,7 +93,7 @@ def cmd_extract(args: argparse.Namespace) -> int:
     count = core.extract_image(Path(args.image), Path(args.dest),
                                progress=_console_progress(),
                                overwrite=args.overwrite)
-    print(f"[extract] {count:,} files -> {args.dest}")
+    print(_("extract.done", count=count, dest=args.dest))
     return 0
 
 
@@ -150,11 +151,11 @@ def main(argv: list[str] | None = None) -> int:
     try:
         return args.fn(args)
     except core.BuildCancelled:
-        print("\n[cancelled]", file=sys.stderr)
+        print("\n" + _("cancelled"), file=sys.stderr)
         return 130
     except (core.VerifyError, FileNotFoundError, FileExistsError,
             OSError, RuntimeError) as exc:
-        print(f"\n[error] {exc}", file=sys.stderr)
+        print("\n" + _("error", msg=exc), file=sys.stderr)
         return 1
 
 

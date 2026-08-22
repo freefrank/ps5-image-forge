@@ -28,7 +28,7 @@ pip install -e .
 
 ```bash
 pip install pyinstaller
-python -m PyInstaller --onefile --windowed --name exFAT-Forge --collect-submodules mkpfs entry.py
+python -m PyInstaller --onefile --windowed --name exFAT-Forge --collect-submodules mkpfs --collect-all webview --add-data "src/exfat_forge/webui;exfat_forge/webui" entry.py
 ```
 
 产出 `dist/exFAT-Forge.exe`（约 15 MB）：双击进 GUI；带参数即为 CLI；
@@ -53,9 +53,18 @@ exfat-forge verify D:\PS5\PPSA21564.exfat --source E:\PPSA21564-app0
 exfat-forge extract D:\PS5\PPSA21564.exfat D:\unpacked
 exfat-forge list D:\PS5\PPSA21564.exfat
 
-# 图形界面
+# 图形界面（赛博朋克风 WebView2 界面，中/英切换）
 exfat-forge-gui
 ```
+
+## GUI 与 i18n
+
+GUI 由 `src/exfat_forge/webui/index.html` 驱动（pywebview + WebView2，Win11 自带运行时）：
+霓虹面板、扫描线、流光进度条、实时遥测（速度/ETA）与控制台日志。
+直接用浏览器打开该 HTML 会进入演示模式（假数据跑完整流程），方便调样式。
+
+界面语言中/英实时切换；CLI 消息跟随系统语言（中文 Windows 出中文），
+可用 `EXFAT_FORGE_LANG=en|zh` 覆盖。
 
 ## 测试
 
