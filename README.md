@@ -104,6 +104,10 @@ python -m http.server 8899 -d src/exfat_forge/webui
 PS5 网络功能（FTP / 内核日志 / Payload）的协议逻辑用本地 socket 服务器验证过，
 但**没有对真实 PS5 主机测试过**。
 
+## 开发文档
+
+当前进度、已确定的需求与设计决策、待办事项：[docs/DEVELOPMENT.md](docs/DEVELOPMENT.md)。
+
 ## License
 
 GPL-3.0（跟随 [MkPFS](https://github.com/PSBrew/MkPFS) 上游）。
