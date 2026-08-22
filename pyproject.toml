@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "exfat-forge"
+version = "0.1.0"
+description = "Mount-free exFAT / PFS image builder for PS5 game dumps"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "GPL-3.0-only" }
+authors = [{ name = "freefrank" }]
+dependencies = [
+    "mkpfs==0.0.9",
+]
+
+[project.scripts]
+exfat-forge = "exfat_forge.cli:main"
+exfat-forge-gui = "exfat_forge.gui:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
