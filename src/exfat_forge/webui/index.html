@@ -3,583 +3,469 @@
 <head>
 <meta charset="utf-8">
 <title>exFAT Forge</title>
-<style>
-  :root {
-    --bg: #070b14;
-    --bg2: #0b1120;
-    --panel: rgba(13, 21, 38, 0.85);
-    --cyan: #00e5ff;
-    --cyan-dim: #0e7f8c;
-    --magenta: #ff2d95;
-    --amber: #ffc857;
-    --text: #c8e6ef;
-    --text-dim: #5d7a8c;
-    --grid: rgba(0, 229, 255, 0.045);
-    --ok: #3dff8f;
-  }
-  * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; }
-  html, body { height: 100%; }
-  body {
-    background:
-      repeating-linear-gradient(0deg, transparent 0 39px, var(--grid) 39px 40px),
-      repeating-linear-gradient(90deg, transparent 0 39px, var(--grid) 39px 40px),
-      radial-gradient(ellipse at 30% -10%, #0e1a33 0%, var(--bg) 60%);
-    color: var(--text);
-    font-family: "Cascadia Mono", Consolas, "Courier New", monospace;
-    font-size: 13px;
-    overflow: hidden;
-    display: flex;
-    flex-direction: column;
-    padding: 14px 18px 12px;
-    position: relative;
-  }
-  /* ── scanline sweep ─────────────────────────────── */
-  body::after {
-    content: "";
-    position: fixed; inset: 0;
-    background: linear-gradient(180deg, transparent 0%,
-      rgba(0,229,255,0.06) 48%, rgba(0,229,255,0.12) 50%,
-      rgba(0,229,255,0.06) 52%, transparent 100%);
-    background-size: 100% 240px;
-    background-repeat: no-repeat;
-    animation: sweep 7s linear infinite;
-    pointer-events: none; z-index: 9;
-  }
-  @keyframes sweep {
-    0% { background-position: 0 -240px; }
-    100% { background-position: 0 calc(100vh + 240px); }
-  }
-  /* fine CRT lines */
-  body::before {
-    content: "";
-    position: fixed; inset: 0;
-    background: repeating-linear-gradient(0deg,
-      rgba(0,0,0,0.16) 0 1px, transparent 1px 3px);
-    pointer-events: none; z-index: 8;
-  }
-
-  /* ── header ─────────────────────────────────────── */
-  header {
-    display: flex; align-items: baseline; gap: 14px;
-    padding-bottom: 10px; margin-bottom: 12px;
-    border-bottom: 1px solid rgba(0,229,255,0.25);
-    position: relative;
-  }
-  header::after {
-    content: ""; position: absolute; left: 0; bottom: -1px;
-    width: 120px; height: 1px; background: var(--cyan);
-    box-shadow: 0 0 8px var(--cyan);
-    animation: headglow 3s ease-in-out infinite alternate;
-  }
-  @keyframes headglow { from { width: 90px; opacity: .7; } to { width: 260px; opacity: 1; } }
-  h1 {
-    font-size: 21px; letter-spacing: 4px; font-weight: 600;
-    color: var(--cyan);
-    text-shadow: 0 0 6px rgba(0,229,255,.9), 0 0 24px rgba(0,229,255,.45);
-    animation: flicker 6s linear infinite;
-  }
-  h1 .accent { color: var(--magenta);
-    text-shadow: 0 0 6px rgba(255,45,149,.9), 0 0 24px rgba(255,45,149,.45); }
-  @keyframes flicker {
-    0%, 91%, 93.5%, 100% { opacity: 1; }
-    92% { opacity: .55; } 93% { opacity: .85; }
-  }
-  .sub { color: var(--text-dim); font-size: 11px; letter-spacing: 2px; }
-  .drag-zone { flex: 1; display: flex; align-items: baseline; gap: 14px;
-    cursor: default; }
-  .win-btns { display: flex; gap: 6px; margin-left: 10px; align-self: center; }
-  .win-btns span {
-    width: 26px; height: 20px; display: inline-flex; align-items: center;
-    justify-content: center; font-size: 11px; cursor: pointer;
-    color: var(--text-dim); border: 1px solid transparent; transition: all .2s;
-  }
-  .win-btns span:hover { color: var(--cyan); border-color: var(--cyan-dim);
-    text-shadow: 0 0 6px var(--cyan); }
-  .win-btns #win-close:hover { color: var(--magenta);
-    border-color: var(--magenta); text-shadow: 0 0 8px var(--magenta); }
-  .lang-switch {
-    display: flex; border: 1px solid var(--cyan-dim); cursor: pointer;
-    clip-path: polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px);
-  }
-  .lang-switch span { padding: 3px 10px; font-size: 11px; letter-spacing: 1px;
-    color: var(--text-dim); transition: all .25s; }
-  .lang-switch span.on { background: var(--cyan); color: #04222a;
-    text-shadow: none; box-shadow: 0 0 12px rgba(0,229,255,.7); }
-
-  /* ── panels ─────────────────────────────────────── */
-  .panel {
-    background: var(--panel);
-    border: 1px solid rgba(0,229,255,0.22);
-    clip-path: polygon(14px 0, 100% 0, 100% calc(100% - 14px),
-                       calc(100% - 14px) 100%, 0 100%, 0 14px);
-    padding: 12px 14px;
-    margin-bottom: 10px;
-    position: relative;
-  }
-  .panel .tag {
-    position: absolute; top: -1px; right: 22px;
-    font-size: 9px; letter-spacing: 2px; color: var(--bg);
-    background: var(--cyan-dim); padding: 1px 8px;
-  }
-
-  .row { display: flex; align-items: center; gap: 10px; margin: 6px 0; }
-  label.field { width: 74px; color: var(--text-dim); font-size: 11px;
-    letter-spacing: 1.5px; text-align: right; }
-  input[type=text] {
-    flex: 1; background: rgba(0,10,20,.7); border: 1px solid var(--cyan-dim);
-    color: var(--text); font: inherit; padding: 6px 9px; outline: none;
-    transition: border-color .2s, box-shadow .2s;
-  }
-  input[type=text]:focus { border-color: var(--cyan);
-    box-shadow: 0 0 10px rgba(0,229,255,.35), inset 0 0 8px rgba(0,229,255,.08); }
-
-  button {
-    background: transparent; border: 1px solid var(--cyan-dim);
-    color: var(--cyan); font: inherit; letter-spacing: 1px;
-    padding: 6px 14px; cursor: pointer; position: relative;
-    white-space: nowrap; flex-shrink: 0;
-    clip-path: polygon(8px 0, 100% 0, 100% calc(100% - 8px),
-                       calc(100% - 8px) 100%, 0 100%, 0 8px);
-    transition: all .2s;
-  }
-  button:hover:not(:disabled) { border-color: var(--cyan); color: #eaffff;
-    box-shadow: 0 0 14px rgba(0,229,255,.5), inset 0 0 10px rgba(0,229,255,.12);
-    text-shadow: 0 0 6px var(--cyan); }
-  button:disabled { opacity: .3; cursor: default; }
-
-  /* mode toggles */
-  .modes { display: flex; gap: 10px; }
-  .mode {
-    flex: 1; text-align: center; padding: 9px 4px; cursor: pointer;
-    border: 1px solid rgba(93,122,140,.5); color: var(--text-dim);
-    letter-spacing: 2px; font-size: 12px; position: relative;
-    clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px),
-                       calc(100% - 10px) 100%, 0 100%, 0 10px);
-    transition: all .25s;
-  }
-  .mode small { display: block; font-size: 9px; letter-spacing: 1px;
-    margin-top: 2px; opacity: .7; }
-  .mode.on {
-    color: var(--cyan); border-color: var(--cyan);
-    box-shadow: 0 0 16px rgba(0,229,255,.35), inset 0 0 14px rgba(0,229,255,.1);
-    text-shadow: 0 0 8px rgba(0,229,255,.8);
-  }
-  .mode.on::after { content: "▮"; position: absolute; right: 8px; top: 8px;
-    font-size: 8px; animation: blink 1.2s step-end infinite; }
-  @keyframes blink { 50% { opacity: 0; } }
-
-  /* option chips */
-  .opts { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; margin-top: 10px; }
-  .chip { display: flex; align-items: center; gap: 6px; cursor: pointer;
-    color: var(--text-dim); transition: color .2s; font-size: 12px; }
-  .chip .box { width: 13px; height: 13px; border: 1px solid var(--cyan-dim);
-    display: inline-block; position: relative; transition: all .2s; }
-  .chip.on { color: var(--text); }
-  .chip.on .box { border-color: var(--cyan);
-    box-shadow: 0 0 8px rgba(0,229,255,.6); }
-  .chip.on .box::after { content: ""; position: absolute; inset: 2px;
-    background: var(--cyan); box-shadow: 0 0 6px var(--cyan); }
-  .chip.disabled { opacity: .3; pointer-events: none; }
-
-  .lvl { display: flex; align-items: center; gap: 8px; }
-  .lvl input[type=range] { width: 110px; accent-color: var(--cyan); }
-  .lvl .val { color: var(--amber); text-shadow: 0 0 8px rgba(255,200,87,.6);
-    width: 14px; text-align: center; }
-
-  /* ── progress ───────────────────────────────────── */
-  .prog-panel { flex: 0 0 auto; }
-  .prog-top { display: flex; align-items: baseline; gap: 14px; }
-  #pct {
-    font-size: 34px; color: var(--cyan); min-width: 118px;
-    text-shadow: 0 0 10px rgba(0,229,255,.8), 0 0 34px rgba(0,229,255,.35);
-  }
-  #phase { color: var(--magenta); letter-spacing: 3px; font-size: 12px;
-    text-shadow: 0 0 8px rgba(255,45,149,.7); }
-  #stats { color: var(--text-dim); font-size: 11px; margin-left: auto; text-align: right; }
-  .bar {
-    height: 14px; margin-top: 8px; border: 1px solid var(--cyan-dim);
-    background: rgba(0,10,20,.6); position: relative; overflow: hidden;
-    clip-path: polygon(7px 0, 100% 0, 100% calc(100% - 7px),
-                       calc(100% - 7px) 100%, 0 100%, 0 7px);
-  }
-  .bar .fill {
-    height: 100%; width: 0%;
-    background: repeating-linear-gradient(-45deg,
-      var(--cyan) 0 10px, #0093ad 10px 20px);
-    background-size: 28px 28px;
-    box-shadow: 0 0 14px rgba(0,229,255,.8);
-    animation: flow 0.8s linear infinite;
-    transition: width .3s ease;
-  }
-  @keyframes flow { to { background-position: 28px 0; } }
-  .bar.idle .fill { animation-play-state: paused; }
-
-  /* ── log ────────────────────────────────────────── */
-  .log-panel { flex: 1 1 auto; display: flex; flex-direction: column; min-height: 0; }
-  #log { flex: 1; overflow-y: auto; font-size: 11.5px; line-height: 1.65;
-    color: var(--text); scrollbar-width: thin;
-    scrollbar-color: var(--cyan-dim) transparent; }
-  #log .ln { opacity: 0; transform: translateX(-6px);
-    animation: lnin .3s ease forwards; white-space: pre-wrap; word-break: break-all; }
-  @keyframes lnin { to { opacity: 1; transform: none; } }
-  #log .ln::before { content: "▸ "; color: var(--cyan-dim); }
-  #log .ln.err { color: var(--magenta); }
-  #log .ln.ok { color: var(--ok); }
-
-  /* ── actions ────────────────────────────────────── */
-  .actions { display: flex; gap: 12px; justify-content: flex-end; padding-top: 10px; }
-  #btn-run {
-    padding: 9px 34px; font-size: 14px; letter-spacing: 4px;
-    border-color: var(--cyan); color: var(--cyan);
-  }
-  #btn-run:hover:not(:disabled) {
-    animation: runpulse 1.6s ease-in-out infinite;
-  }
-  @keyframes runpulse {
-    0%, 100% { box-shadow: 0 0 12px rgba(0,229,255,.5); }
-    50% { box-shadow: 0 0 26px rgba(0,229,255,.9), inset 0 0 16px rgba(0,229,255,.2); }
-  }
-  #btn-abort { border-color: var(--magenta); color: var(--magenta); }
-  #btn-abort:hover:not(:disabled) {
-    box-shadow: 0 0 14px rgba(255,45,149,.6), inset 0 0 10px rgba(255,45,149,.15);
-    text-shadow: 0 0 6px var(--magenta); color: #ffd7ea;
-  }
-
-  footer { color: var(--text-dim); font-size: 9.5px; letter-spacing: 1.5px;
-    padding-top: 8px; display: flex; justify-content: space-between; }
-  footer .demo { color: var(--amber); }
-</style>
+<link rel="stylesheet" href="app.css">
 </head>
 <body>
 
-<header>
-  <div class="drag-zone pywebview-drag-region">
+<div id="titlebar">
+  <div class="drag pywebview-drag-region">
     <h1>EXFAT<span class="accent">▮</span>FORGE</h1>
     <span class="sub" data-i18n="tagline">MOUNT-FREE IMAGE COMPILER</span>
   </div>
   <div class="lang-switch" id="lang-switch" title="Language">
     <span data-lang="zh">中</span><span data-lang="en">EN</span>
   </div>
-  <div class="win-btns" id="win-btns">
+  <div class="win-btns">
     <span id="win-min" title="Minimize">─</span>
+    <span id="win-max" title="Maximize">▢</span>
     <span id="win-close" title="Close">✕</span>
   </div>
-</header>
-
-<div class="panel">
-  <span class="tag" data-i18n="tag.target">TARGET</span>
-  <div class="row">
-    <label class="field" data-i18n="lbl.source">SOURCE</label>
-    <input type="text" id="source" spellcheck="false">
-    <button id="pick-source" data-i18n="btn.browse">SCAN…</button>
-  </div>
-  <div class="row">
-    <label class="field" data-i18n="lbl.output">OUTPUT</label>
-    <input type="text" id="output" spellcheck="false">
-    <button id="pick-output" data-i18n="btn.browse2">DIR…</button>
-  </div>
 </div>
 
-<div class="panel">
-  <span class="tag" data-i18n="tag.pipeline">PIPELINE</span>
-  <div class="modes">
-    <div class="mode on" id="mode-exfat" data-mode="exfat">EXFAT
-      <small data-i18n="mode.exfat.sub">RAW IMAGE</small></div>
-    <div class="mode" id="mode-pfs" data-mode="pfs">EXFAT + PFS
-      <small data-i18n="mode.pfs.sub">.FFPFSC PACKAGE</small></div>
-  </div>
-  <div class="opts">
-    <span class="chip on" id="opt-verify"><span class="box"></span>
-      <span data-i18n="opt.verify">VERIFY AFTER BUILD</span></span>
-    <span class="chip on disabled" id="opt-compress"><span class="box"></span>
-      <span data-i18n="opt.compress">COMPRESS</span></span>
-    <span class="lvl" id="lvl-wrap" style="opacity:.3">
-      <span data-i18n="opt.level">LVL</span>
-      <input type="range" id="level" min="1" max="9" value="9">
-      <span class="val" id="level-val">9</span>
-    </span>
-    <span class="chip disabled" id="opt-keep"><span class="box"></span>
-      <span data-i18n="opt.keep">KEEP .EXFAT</span></span>
-  </div>
-</div>
+<div id="shell">
+  <nav id="rail">
+    <div class="grp" data-i18n="nav.grp.build">BUILD</div>
+    <div class="nav on" data-page="home"><span class="ico">◈</span><span data-i18n="nav.home">Home</span></div>
+    <div class="nav" data-page="build"><span class="ico">⚒</span><span data-i18n="nav.build">Build</span></div>
+    <div class="nav" data-page="extract"><span class="ico">⇱</span><span data-i18n="nav.extract">Extract</span></div>
+    <div class="nav" data-page="inspect"><span class="ico">⌕</span><span data-i18n="nav.inspect">Inspect</span></div>
 
-<div class="panel prog-panel">
-  <span class="tag" data-i18n="tag.telemetry">TELEMETRY</span>
-  <div class="prog-top">
-    <span id="pct">0.0%</span>
-    <span id="phase" data-i18n="phase.standby">STANDBY</span>
-    <span id="stats"></span>
-  </div>
-  <div class="bar idle"><div class="fill" id="fill"></div></div>
-</div>
+    <div class="grp" data-i18n="nav.grp.manage">MANAGE</div>
+    <div class="nav" data-page="library"><span class="ico">▤</span><span data-i18n="nav.library">Library</span></div>
+    <div class="nav" data-page="history"><span class="ico">◷</span><span data-i18n="nav.history">History</span></div>
 
-<div class="panel log-panel">
-  <span class="tag" data-i18n="tag.console">CONSOLE</span>
-  <div id="log"></div>
-</div>
+    <div class="grp" data-i18n="nav.grp.ps5">PS5</div>
+    <div class="nav" data-page="ftp"><span class="ico">⇅</span><span data-i18n="nav.ftp">FTP</span></div>
+    <div class="nav" data-page="klog"><span class="ico">≣</span><span data-i18n="nav.klog">Kernel Log</span></div>
+    <div class="nav" data-page="payload"><span class="ico">➤</span><span data-i18n="nav.payload">Payloads</span></div>
 
-<div class="actions">
-  <button id="btn-abort" disabled data-i18n="btn.abort">ABORT</button>
-  <button id="btn-run" data-i18n="btn.run">EXECUTE</button>
+    <div class="grp" data-i18n="nav.grp.system">SYSTEM</div>
+    <div class="nav" data-page="settings"><span class="ico">⚙</span><span data-i18n="nav.settings">Settings</span></div>
+    <div class="nav" data-page="about"><span class="ico">ⓘ</span><span data-i18n="nav.about">About</span></div>
+  </nav>
+
+  <main id="pages">
+
+    <!-- ── HOME ─────────────────────────────────────────── -->
+    <section class="page on" id="page-home">
+      <div class="panel">
+        <span class="tag">STATUS</span>
+        <h2 data-i18n="home.title">SYSTEM STATUS</h2>
+        <div class="row" style="gap:14px;flex-wrap:wrap">
+          <span class="pill good"><span class="dot"></span><span data-i18n="home.nomount">No mounting</span></span>
+          <span class="pill good"><span class="dot"></span><span data-i18n="home.noadmin">No admin</span></span>
+          <span class="pill" id="pill-ffpkg"><span class="dot"></span><span>ffpkg</span></span>
+          <span class="pill" id="pill-version"><span class="dot"></span><span>v—</span></span>
+        </div>
+      </div>
+      <div class="panel">
+        <span class="tag">QUICK</span>
+        <h2 data-i18n="home.quick">QUICK ACTIONS</h2>
+        <div class="cards">
+          <div class="card" data-goto="build">
+            <div class="ci">⚒</div><div class="ct" data-i18n="home.c1t">BUILD IMAGE</div>
+            <div class="cd" data-i18n="home.c1d">Turn a game dump into exFAT, ffpkg or PFS</div>
+          </div>
+          <div class="card" data-goto="extract">
+            <div class="ci">⇱</div><div class="ct" data-i18n="home.c2t">EXTRACT</div>
+            <div class="cd" data-i18n="home.c2d">Unpack any image back to a folder</div>
+          </div>
+          <div class="card" data-goto="library">
+            <div class="ci">▤</div><div class="ct" data-i18n="home.c3t">LIBRARY</div>
+            <div class="cd" data-i18n="home.c3d">Browse dumps and built images</div>
+          </div>
+          <div class="card" data-goto="ftp">
+            <div class="ci">⇅</div><div class="ct" data-i18n="home.c4t">SEND TO PS5</div>
+            <div class="cd" data-i18n="home.c4d">Upload images over FTP</div>
+          </div>
+        </div>
+      </div>
+      <div class="panel">
+        <span class="tag">RECENT</span>
+        <h2 data-i18n="home.recent">RECENT BUILDS</h2>
+        <div id="home-recent"><div class="empty" data-i18n="empty.history">No builds yet</div></div>
+      </div>
+    </section>
+
+    <!-- ── BUILD ────────────────────────────────────────── -->
+    <section class="page" id="page-build">
+      <div class="panel">
+        <span class="tag" data-i18n="tag.target">TARGET</span>
+        <div class="row">
+          <label class="field" data-i18n="lbl.source">SOURCE</label>
+          <input type="text" id="source" spellcheck="false">
+          <button id="pick-source" data-i18n="btn.browse">SCAN…</button>
+        </div>
+        <div class="row">
+          <label class="field" data-i18n="lbl.output">OUTPUT</label>
+          <input type="text" id="output" spellcheck="false">
+          <button id="pick-output" data-i18n="btn.browse2">DIR…</button>
+        </div>
+        <div class="hint" id="source-info"></div>
+      </div>
+
+      <div class="panel">
+        <span class="tag" data-i18n="tag.pipeline">PIPELINE</span>
+        <div class="modes">
+          <div class="mode on" data-mode="exfat">EXFAT<small data-i18n="mode.exfat.sub">RAW IMAGE</small></div>
+          <div class="mode" data-mode="ffpkg">FFPKG<small data-i18n="mode.ffpkg.sub">UFS · NEEDS .NET</small></div>
+          <div class="mode" data-mode="pfs">PFS<small data-i18n="mode.pfs.sub">.FFPFSC PACKAGE</small></div>
+        </div>
+        <div class="opts">
+          <span class="chip on" id="opt-verify"><span class="box"></span><span data-i18n="opt.verify">VERIFY</span></span>
+          <span class="chip on" id="opt-compress"><span class="box"></span><span data-i18n="opt.compress">COMPRESS</span></span>
+          <span class="lvl" id="lvl-wrap">
+            <span data-i18n="opt.level">LVL</span>
+            <input type="range" id="level" min="1" max="9" value="9">
+            <span class="val" id="level-val">9</span>
+          </span>
+          <span class="chip" id="opt-keep"><span class="box"></span><span data-i18n="opt.keep">KEEP INTERMEDIATE</span></span>
+        </div>
+        <div class="opts" id="inter-wrap">
+          <span style="color:var(--text-dim);font-size:11px" data-i18n="opt.intermediate">INTERMEDIATE</span>
+          <select id="intermediate" style="flex:0 0 150px">
+            <option value="exfat">exFAT</option>
+            <option value="ffpkg">ffpkg</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="panel">
+        <span class="tag" data-i18n="tag.telemetry">TELEMETRY</span>
+        <div class="prog-top">
+          <span id="pct">0.0%</span>
+          <span id="phase" data-i18n="phase.standby">STANDBY</span>
+          <span id="stats"></span>
+        </div>
+        <div class="bar idle"><div class="fill" id="fill"></div></div>
+      </div>
+
+      <div class="panel">
+        <span class="tag" data-i18n="tag.console">CONSOLE</span>
+        <div class="logbox" id="log"></div>
+      </div>
+
+      <div class="actions">
+        <button id="btn-abort" class="danger" disabled data-i18n="btn.abort">ABORT</button>
+        <button id="btn-run" class="primary" data-i18n="btn.run">EXECUTE</button>
+      </div>
+    </section>
+
+    <!-- ── EXTRACT ──────────────────────────────────────── -->
+    <section class="page" id="page-extract">
+      <div class="panel">
+        <span class="tag" data-i18n="tag.target">TARGET</span>
+        <div class="row">
+          <label class="field" data-i18n="lbl.image">IMAGE</label>
+          <input type="text" id="ex-image" spellcheck="false">
+          <button id="ex-pick-image" data-i18n="btn.file">FILE…</button>
+        </div>
+        <div class="row">
+          <label class="field" data-i18n="lbl.dest">DEST</label>
+          <input type="text" id="ex-dest" spellcheck="false">
+          <button id="ex-pick-dest" data-i18n="btn.browse2">DIR…</button>
+        </div>
+        <div class="opts">
+          <span class="chip" id="ex-overwrite"><span class="box"></span><span data-i18n="opt.overwrite">OVERWRITE EXISTING</span></span>
+        </div>
+        <div class="hint" data-i18n="extract.hint">Supports .exfat, .ffpkg and .ffpfsc</div>
+      </div>
+      <div class="panel">
+        <span class="tag" data-i18n="tag.console">CONSOLE</span>
+        <div class="logbox" id="ex-log"></div>
+      </div>
+      <div class="actions">
+        <button id="ex-abort" class="danger" disabled data-i18n="btn.abort">ABORT</button>
+        <button id="ex-run" class="primary" data-i18n="btn.extract">EXTRACT</button>
+      </div>
+    </section>
+
+    <!-- ── INSPECT ──────────────────────────────────────── -->
+    <section class="page" id="page-inspect">
+      <div class="panel">
+        <span class="tag" data-i18n="tag.target">TARGET</span>
+        <div class="row">
+          <label class="field" data-i18n="lbl.image">IMAGE</label>
+          <input type="text" id="in-image" spellcheck="false">
+          <button id="in-pick" data-i18n="btn.file">FILE…</button>
+          <button id="in-run" data-i18n="btn.inspect">INSPECT</button>
+        </div>
+        <div class="hint" id="in-summary"></div>
+      </div>
+      <div class="panel">
+        <span class="tag">TREE</span>
+        <div class="logbox mono-plain" id="in-tree" style="height:300px"></div>
+      </div>
+    </section>
+
+    <!-- ── LIBRARY ──────────────────────────────────────── -->
+    <section class="page" id="page-library">
+      <div class="panel">
+        <span class="tag" data-i18n="tag.folders">FOLDERS</span>
+        <div class="row">
+          <input type="text" id="lib-folders" spellcheck="false" placeholder="D:\PS5;E:\dumps">
+          <button id="lib-add" data-i18n="btn.browse2">DIR…</button>
+          <button id="lib-scan" data-i18n="btn.scan">SCAN</button>
+        </div>
+        <div class="hint" data-i18n="library.hint">Separate multiple folders with ;</div>
+      </div>
+      <div class="split">
+        <div class="panel">
+          <span class="tag">DUMPS</span>
+          <h2 data-i18n="library.dumps">SOURCE DUMPS</h2>
+          <div style="max-height:290px;overflow-y:auto">
+            <table><thead><tr>
+              <th data-i18n="col.title">TITLE</th><th data-i18n="col.id">ID</th>
+              <th class="num" data-i18n="col.files">FILES</th><th class="num" data-i18n="col.size">SIZE</th>
+            </tr></thead><tbody id="lib-dumps"></tbody></table>
+            <div class="empty" id="lib-dumps-empty" data-i18n="empty.dumps">No dumps found</div>
+          </div>
+        </div>
+        <div class="panel">
+          <span class="tag">IMAGES</span>
+          <h2 data-i18n="library.images">BUILT IMAGES</h2>
+          <div style="max-height:290px;overflow-y:auto">
+            <table><thead><tr>
+              <th data-i18n="col.name">NAME</th><th data-i18n="col.fmt">FMT</th>
+              <th class="num" data-i18n="col.size">SIZE</th><th data-i18n="col.modified">MODIFIED</th>
+            </tr></thead><tbody id="lib-images"></tbody></table>
+            <div class="empty" id="lib-images-empty" data-i18n="empty.images">No images found</div>
+          </div>
+        </div>
+      </div>
+      <div class="actions">
+        <button id="lib-build" disabled data-i18n="btn.buildsel">BUILD SELECTED</button>
+        <button id="lib-upload" disabled data-i18n="btn.uploadsel">UPLOAD SELECTED</button>
+      </div>
+    </section>
+
+    <!-- ── HISTORY ──────────────────────────────────────── -->
+    <section class="page" id="page-history">
+      <div class="panel">
+        <span class="tag">LOG</span>
+        <h2 data-i18n="history.title">BUILD HISTORY</h2>
+        <div style="max-height:400px;overflow-y:auto">
+          <table><thead><tr>
+            <th data-i18n="col.when">WHEN</th><th data-i18n="col.title">TITLE</th>
+            <th data-i18n="col.fmt">FMT</th><th class="num" data-i18n="col.size">SIZE</th>
+            <th class="num" data-i18n="col.time">TIME</th><th data-i18n="col.status">STATUS</th>
+          </tr></thead><tbody id="hist-body"></tbody></table>
+          <div class="empty" id="hist-empty" data-i18n="empty.history">No builds yet</div>
+        </div>
+      </div>
+      <div class="actions">
+        <button id="hist-refresh" data-i18n="btn.refresh">REFRESH</button>
+        <button id="hist-clear" class="danger" data-i18n="btn.clear">CLEAR</button>
+      </div>
+    </section>
+
+    <!-- ── FTP ──────────────────────────────────────────── -->
+    <section class="page" id="page-ftp">
+      <div class="panel">
+        <span class="tag" data-i18n="tag.connection">CONNECTION</span>
+        <div class="row">
+          <label class="field" data-i18n="lbl.host">PS5 IP</label>
+          <input type="text" id="ftp-host" spellcheck="false" placeholder="192.168.1.42">
+          <label class="field" style="width:44px" data-i18n="lbl.port">PORT</label>
+          <input type="number" id="ftp-port" value="2121">
+          <button id="ftp-probe" data-i18n="btn.probe">PROBE</button>
+        </div>
+        <div class="row">
+          <label class="field" data-i18n="lbl.remote">REMOTE</label>
+          <input type="text" id="ftp-path" value="/data/etaHEN/games/" spellcheck="false">
+          <button id="ftp-list" data-i18n="btn.list">LIST</button>
+        </div>
+        <div class="row"><span class="pill" id="ftp-status"><span class="dot"></span><span data-i18n="ftp.idle">Not connected</span></span></div>
+      </div>
+      <div class="split">
+        <div class="panel">
+          <span class="tag">REMOTE</span>
+          <div style="max-height:230px;overflow-y:auto">
+            <table><thead><tr><th data-i18n="col.name">NAME</th><th class="num" data-i18n="col.size">SIZE</th></tr></thead>
+            <tbody id="ftp-entries"></tbody></table>
+            <div class="empty" id="ftp-empty" data-i18n="empty.remote">Not listed</div>
+          </div>
+        </div>
+        <div class="panel">
+          <span class="tag">UPLOAD</span>
+          <div class="row">
+            <input type="text" id="ftp-file" spellcheck="false">
+            <button id="ftp-pick" data-i18n="btn.file">FILE…</button>
+          </div>
+          <div class="prog-top" style="margin-top:9px">
+            <span id="ftp-pct" style="font-size:20px;color:var(--cyan);min-width:74px">0.0%</span>
+            <span id="ftp-stats" style="color:var(--text-dim);font-size:10.5px"></span>
+          </div>
+          <div class="bar idle"><div class="fill" id="ftp-fill"></div></div>
+          <div class="actions" style="margin-top:9px">
+            <button id="ftp-abort" class="danger" disabled data-i18n="btn.abort">ABORT</button>
+            <button id="ftp-upload" data-i18n="btn.upload">UPLOAD</button>
+          </div>
+        </div>
+      </div>
+      <div class="panel">
+        <span class="tag" data-i18n="tag.console">CONSOLE</span>
+        <div class="logbox" id="ftp-log" style="height:110px"></div>
+      </div>
+    </section>
+
+    <!-- ── KLOG ─────────────────────────────────────────── -->
+    <section class="page" id="page-klog">
+      <div class="panel">
+        <span class="tag" data-i18n="tag.connection">CONNECTION</span>
+        <div class="row">
+          <label class="field" data-i18n="lbl.host">PS5 IP</label>
+          <input type="text" id="kl-host" spellcheck="false" placeholder="192.168.1.42">
+          <label class="field" style="width:44px" data-i18n="lbl.port">PORT</label>
+          <input type="number" id="kl-port" value="3232">
+          <button id="kl-start" data-i18n="btn.connect">CONNECT</button>
+          <button id="kl-stop" class="danger" disabled data-i18n="btn.disconnect">STOP</button>
+          <button id="kl-clear" data-i18n="btn.clear">CLEAR</button>
+        </div>
+        <div class="row">
+          <span class="pill" id="kl-status"><span class="dot"></span><span data-i18n="klog.idle">Disconnected</span></span>
+          <span class="chip on" id="kl-follow" style="margin-left:12px"><span class="box"></span><span data-i18n="klog.follow">AUTO-SCROLL</span></span>
+        </div>
+      </div>
+      <div class="panel">
+        <span class="tag">KERNEL</span>
+        <div class="logbox mono-plain" id="kl-log" style="height:330px"></div>
+      </div>
+    </section>
+
+    <!-- ── PAYLOAD ──────────────────────────────────────── -->
+    <section class="page" id="page-payload">
+      <div class="panel">
+        <span class="tag" data-i18n="tag.connection">CONNECTION</span>
+        <div class="row">
+          <label class="field" data-i18n="lbl.host">PS5 IP</label>
+          <input type="text" id="pl-host" spellcheck="false" placeholder="192.168.1.42">
+          <label class="field" style="width:44px" data-i18n="lbl.port">PORT</label>
+          <input type="number" id="pl-port" value="9021">
+        </div>
+        <div class="row">
+          <label class="field" data-i18n="lbl.payload">PAYLOAD</label>
+          <input type="text" id="pl-file" spellcheck="false">
+          <button id="pl-pick" data-i18n="btn.file">ELF…</button>
+        </div>
+        <div class="hint" data-i18n="payload.hint">The PS5 must be listening (etaHEN / GoldHEN loader) before sending.</div>
+      </div>
+      <div class="panel">
+        <span class="tag" data-i18n="tag.console">CONSOLE</span>
+        <div class="logbox" id="pl-log" style="height:180px"></div>
+      </div>
+      <div class="actions">
+        <button id="pl-send" class="primary" data-i18n="btn.send">SEND</button>
+      </div>
+    </section>
+
+    <!-- ── SETTINGS ─────────────────────────────────────── -->
+    <section class="page" id="page-settings">
+      <div class="panel">
+        <span class="tag">PATHS</span>
+        <h2 data-i18n="set.paths">DEFAULT PATHS</h2>
+        <div class="row">
+          <label class="field" data-i18n="lbl.output">OUTPUT</label>
+          <input type="text" id="set-output" spellcheck="false">
+          <button id="set-pick-output" data-i18n="btn.browse2">DIR…</button>
+        </div>
+        <div class="row">
+          <label class="field" data-i18n="set.libdirs">LIBRARY</label>
+          <input type="text" id="set-libdirs" spellcheck="false" placeholder="D:\PS5;E:\dumps">
+        </div>
+      </div>
+      <div class="split">
+        <div class="panel">
+          <span class="tag">EXFAT</span>
+          <div class="row">
+            <label class="field" data-i18n="set.cluster">CLUSTER</label>
+            <select id="set-cluster">
+              <option value="0" data-i18n="auto">Auto</option>
+              <option value="32768">32 KB</option>
+              <option value="65536">64 KB</option>
+              <option value="131072">128 KB</option>
+            </select>
+          </div>
+          <div class="opts">
+            <span class="chip on" id="set-verify"><span class="box"></span><span data-i18n="opt.verify">VERIFY AFTER BUILD</span></span>
+          </div>
+        </div>
+        <div class="panel">
+          <span class="tag">PFS</span>
+          <div class="opts">
+            <span class="chip on" id="set-compress"><span class="box"></span><span data-i18n="opt.compress">COMPRESS</span></span>
+            <span class="lvl">
+              <span data-i18n="opt.level">LVL</span>
+              <input type="range" id="set-level" min="1" max="9" value="9">
+              <span class="val" id="set-level-val">9</span>
+            </span>
+          </div>
+          <div class="row">
+            <label class="field" data-i18n="set.threads">THREADS</label>
+            <input type="number" id="set-threads" min="0" max="128" value="0">
+            <span class="hint" style="margin:0" data-i18n="set.threads.hint">0 = all cores</span>
+          </div>
+        </div>
+      </div>
+      <div class="split">
+        <div class="panel">
+          <span class="tag">FFPKG</span>
+          <div class="row">
+            <label class="field" data-i18n="set.block">BLOCK</label>
+            <input type="number" id="set-ffblock" value="65536">
+            <label class="field" data-i18n="set.frag">FRAG</label>
+            <input type="number" id="set-fffrag" value="65536">
+          </div>
+          <div class="hint" id="set-ffpkg-status"></div>
+        </div>
+        <div class="panel">
+          <span class="tag">PS5</span>
+          <div class="row">
+            <label class="field" data-i18n="lbl.host">IP</label>
+            <input type="text" id="set-ps5host" spellcheck="false">
+          </div>
+          <div class="row">
+            <label class="field" data-i18n="lbl.remote">PATH</label>
+            <input type="text" id="set-ps5path" spellcheck="false">
+          </div>
+        </div>
+      </div>
+      <div class="actions">
+        <button id="set-save" class="primary" data-i18n="btn.save">SAVE</button>
+      </div>
+    </section>
+
+    <!-- ── ABOUT ────────────────────────────────────────── -->
+    <section class="page" id="page-about">
+      <div class="panel">
+        <span class="tag">ABOUT</span>
+        <h2>exFAT FORGE</h2>
+        <div class="hint" style="font-size:11.5px;line-height:1.8">
+          <p data-i18n="about.p1">A modern, mount-free rebuild of exFAT Image Builder.</p>
+          <p data-i18n="about.p2">Images are serialized directly: no OSFMount, no drive letters, no administrator rights, and no locale-dependent output parsing.</p>
+          <p style="margin-top:10px" id="about-version">v—</p>
+        </div>
+      </div>
+      <div class="panel">
+        <span class="tag">CREDITS</span>
+        <div class="hint" style="font-size:11.5px;line-height:1.9">
+          <p>· <b>MkPFS</b> (PSBrew) — exFAT/PFS serialization, GPL-3.0</p>
+          <p>· <b>UFS2Tool</b> — .ffpkg (UFS) support, requires .NET 8</p>
+          <p>· <b>pywebview</b> — WebView2 shell</p>
+          <p style="margin-top:10px" data-i18n="about.license">Licensed GPL-3.0, following MkPFS upstream.</p>
+        </div>
+      </div>
+    </section>
+
+  </main>
 </div>
 
 <footer>
-  <span>exFAT FORGE v0.2.0 // GPL-3.0</span>
+  <span id="foot-left">exFAT FORGE // GPL-3.0</span>
   <span id="demo-badge" class="demo" style="display:none" data-i18n="demo">DEMO MODE — NO BRIDGE</span>
 </footer>
 
-<script>
-"use strict";
-
-/* ── i18n ─────────────────────────────────────────── */
-const I18N = {
-  en: {
-    "tagline": "MOUNT-FREE IMAGE COMPILER",
-    "tag.target": "TARGET", "tag.pipeline": "PIPELINE",
-    "tag.telemetry": "TELEMETRY", "tag.console": "CONSOLE",
-    "lbl.source": "SOURCE", "lbl.output": "OUTPUT",
-    "btn.browse": "SCAN…", "btn.browse2": "DIR…",
-    "mode.exfat.sub": "RAW IMAGE", "mode.pfs.sub": ".FFPFSC PACKAGE",
-    "opt.verify": "VERIFY AFTER BUILD", "opt.compress": "COMPRESS",
-    "opt.level": "LVL", "opt.keep": "KEEP .EXFAT",
-    "phase.standby": "STANDBY", "phase.scan": "SCANNING",
-    "phase.write": "WRITING IMAGE", "phase.verify": "VERIFYING",
-    "phase.pfs": "PFS PACKING", "phase.done": "COMPLETE",
-    "phase.error": "FAULT", "phase.cancelled": "ABORTED",
-    "btn.run": "EXECUTE", "btn.abort": "ABORT",
-    "demo": "DEMO MODE — NO BRIDGE",
-    "log.hello": "exFAT Forge online. No mounts, no admin, no locale bugs.",
-    "log.need_source": "Select a source directory first.",
-    "log.no_eboot": "warning: no eboot.bin in source — not a game dump?",
-    "err.prefix": "ERROR: ",
-    "stats.eta": "ETA", "stats.files": "files",
-  },
-  zh: {
-    "tagline": "免挂载镜像编译器",
-    "tag.target": "目标", "tag.pipeline": "流水线",
-    "tag.telemetry": "遥测", "tag.console": "控制台",
-    "lbl.source": "源目录", "lbl.output": "输出",
-    "btn.browse": "扫描…", "btn.browse2": "目录…",
-    "mode.exfat.sub": "原始镜像", "mode.pfs.sub": ".FFPFSC 封包",
-    "opt.verify": "构建后校验", "opt.compress": "压缩",
-    "opt.level": "等级", "opt.keep": "保留 .EXFAT",
-    "phase.standby": "待机", "phase.scan": "扫描中",
-    "phase.write": "写入镜像", "phase.verify": "校验中",
-    "phase.pfs": "PFS 打包", "phase.done": "完成",
-    "phase.error": "故障", "phase.cancelled": "已中止",
-    "btn.run": "执行", "btn.abort": "中止",
-    "demo": "演示模式 — 无后端",
-    "log.hello": "exFAT Forge 已就绪。零挂载、零管理员、零本地化炸弹。",
-    "log.need_source": "请先选择源目录。",
-    "log.no_eboot": "警告: 源目录中没有 eboot.bin — 可能不是游戏 dump?",
-    "err.prefix": "错误: ",
-    "stats.eta": "剩余", "stats.files": "文件",
-  },
-};
-let lang = "zh";
-function t(key) { return (I18N[lang] && I18N[lang][key]) || I18N.en[key] || key; }
-function applyLang() {
-  document.querySelectorAll("[data-i18n]").forEach(el => {
-    if (el.id === "phase") return;   // phase shows live state, not its default
-    el.textContent = t(el.dataset.i18n);
-  });
-  const phaseEl = document.getElementById("phase");
-  phaseEl.textContent = t("phase." + (phaseEl.dataset.k || "standby"));
-  document.querySelectorAll("#lang-switch span").forEach(el =>
-    el.classList.toggle("on", el.dataset.lang === lang));
-  document.documentElement.lang = lang === "zh" ? "zh" : "en";
-}
-
-/* ── state & elements ─────────────────────────────── */
-const $ = id => document.getElementById(id);
-const els = {
-  source: $("source"), output: $("output"), pct: $("pct"),
-  phase: $("phase"), stats: $("stats"), fill: $("fill"),
-  log: $("log"), run: $("btn-run"), abort: $("btn-abort"),
-  level: $("level"), levelVal: $("level-val"),
-};
-const state = { mode: "exfat", verify: true, compress: true, keep: false,
-                running: false, t0: 0 };
-
-function log(line, cls) {
-  const div = document.createElement("div");
-  div.className = "ln" + (cls ? " " + cls : "");
-  div.textContent = line;
-  els.log.appendChild(div);
-  els.log.scrollTop = els.log.scrollHeight;
-  while (els.log.childNodes.length > 400) els.log.removeChild(els.log.firstChild);
-}
-
-function setPhase(key) { els.phase.textContent = t("phase." + key); els.phase.dataset.k = key; }
-
-function gb(n) { return (n / 1073741824).toFixed(2) + " GB"; }
-
-function onProgress(ev) {
-  // ev: {phase, done, total, detail}
-  const bar = document.querySelector(".bar");
-  setPhase(ev.phase);
-  if (ev.total > 0) {
-    const frac = ev.done / ev.total;
-    els.pct.textContent = (frac * 100).toFixed(1) + "%";
-    els.fill.style.width = (frac * 100) + "%";
-    bar.classList.remove("idle");
-    const elapsed = (Date.now() - state.t0) / 1000;
-    const speed = elapsed > 0 ? ev.done / elapsed : 0;
-    if (["write", "verify", "extract"].includes(ev.phase) && speed > 0) {
-      const eta = Math.max(0, (ev.total - ev.done) / speed);
-      els.stats.textContent = `${gb(ev.done)} / ${gb(ev.total)} · ` +
-        `${(speed / 1048576).toFixed(0)} MB/s · ${t("stats.eta")} ${eta.toFixed(0)}s`;
-    } else { els.stats.textContent = ev.detail || ""; }
-  } else {
-    els.stats.textContent = (ev.done ? ev.done.toLocaleString() + " " : "") +
-      (ev.detail || "");
-  }
-}
-
-function onDone(msg) {
-  state.running = false;
-  setPhase("done");
-  els.pct.textContent = "100.0%";
-  els.fill.style.width = "100%";
-  document.querySelector(".bar").classList.add("idle");
-  log(msg, "ok");
-  els.run.disabled = false; els.abort.disabled = true;
-}
-function onError(msg) {
-  state.running = false;
-  setPhase("error");
-  document.querySelector(".bar").classList.add("idle");
-  log(t("err.prefix") + msg, "err");
-  els.run.disabled = false; els.abort.disabled = true;
-}
-function onCancelled() {
-  state.running = false;
-  setPhase("cancelled");
-  document.querySelector(".bar").classList.add("idle");
-  log(t("phase.cancelled"));
-  els.run.disabled = false; els.abort.disabled = true;
-}
-/* exposed for python -> js push */
-window.forge = { onProgress, onLog: log, onDone, onError, onCancelled,
-                 setLang: l => { lang = l; applyLang(); } };
-
-/* ── bridge / demo ────────────────────────────────── */
-const bridge = () => window.pywebview && window.pywebview.api;
-
-async function pick(which) {
-  const b = bridge();
-  if (!b) { log("demo: folder dialog unavailable"); return; }
-  const path = await b.pick_folder();
-  if (path) {
-    els[which].value = path;
-    if (which === "source" && b.suggest_output && !els.output.value) {
-      els.output.value = await b.suggest_output(path) || "";
-    }
-  }
-}
-
-async function start() {
-  if (state.running) return;
-  const src = els.source.value.trim();
-  if (!src) { log(t("log.need_source"), "err"); return; }
-  els.log.innerHTML = "";
-  state.running = true; state.t0 = Date.now();
-  els.run.disabled = true; els.abort.disabled = false;
-  els.fill.style.width = "0%"; els.pct.textContent = "0.0%";
-  const opts = { source: src, output: els.output.value.trim(),
-    mode: state.mode, verify: state.verify, compress: state.compress,
-    level: +els.level.value, keep_exfat: state.keep, lang };
-  const b = bridge();
-  if (b) { b.start_build(opts); } else { demoRun(); }
-}
-
-function abort() {
-  const b = bridge();
-  if (b) b.cancel(); else onCancelled();
-}
-
-/* demo mode: fake telemetry so the UI can be previewed in a browser */
-function demoRun() {
-  const phases = [
-    { phase: "scan", steps: 12, detail: "156,250 files" },
-    { phase: "write", steps: 60, total: 164501651456 },
-    { phase: "verify", steps: 30, total: 164501651456 },
-    { phase: "pfs", steps: 25, total: 164501651456 },
-  ];
-  let pi = 0, si = 0;
-  log("demo: scanning E:\\PPSA21564-app0 …");
-  const tick = setInterval(() => {
-    if (!state.running) { clearInterval(tick); return; }
-    const p = phases[pi];
-    si++;
-    onProgress({ phase: p.phase, done: (p.total || p.steps) * si / p.steps,
-                 total: p.total || 0, detail: p.detail || "" });
-    if (si >= p.steps) {
-      log(`demo: ${p.phase} complete`);
-      pi++; si = 0; state.t0 = Date.now();
-      if (pi >= phases.length) {
-        clearInterval(tick);
-        onDone("demo: PPSA21564.ffpfsc (98.41 GB, 66% of exFAT) — 14m 02s");
-      }
-    }
-  }, 120);
-}
-
-/* ── wiring ───────────────────────────────────────── */
-$("pick-source").onclick = () => pick("source");
-$("pick-output").onclick = () => pick("output");
-els.run.onclick = start;
-els.abort.onclick = abort;
-
-document.querySelectorAll(".mode").forEach(m => m.onclick = () => {
-  document.querySelectorAll(".mode").forEach(x => x.classList.remove("on"));
-  m.classList.add("on");
-  state.mode = m.dataset.mode;
-  syncOpts();
-});
-function chip(id, key, dflt) {
-  const el = $(id);
-  state[key] = dflt;
-  el.onclick = () => { state[key] = !state[key];
-    el.classList.toggle("on", state[key]); syncOpts(); };
-}
-chip("opt-verify", "verify", true);
-chip("opt-compress", "compress", true);
-chip("opt-keep", "keep", false);
-
-function syncOpts() {
-  const pfs = state.mode === "pfs";
-  $("opt-compress").classList.toggle("disabled", !pfs);
-  $("opt-keep").classList.toggle("disabled", !pfs);
-  $("lvl-wrap").style.opacity = (pfs && state.compress) ? 1 : .3;
-  els.level.disabled = !(pfs && state.compress);
-}
-els.level.oninput = () => els.levelVal.textContent = els.level.value;
-
-$("lang-switch").onclick = e => {
-  const l = e.target.dataset.lang;
-  if (l) { lang = l; applyLang();
-    const b = bridge(); if (b && b.set_lang) b.set_lang(l); }
-};
-$("win-min").onclick = () => { const b = bridge(); if (b) b.minimize(); };
-$("win-close").onclick = () => { const b = bridge(); if (b) b.close(); else window.close(); };
-
-/* ── init ─────────────────────────────────────────── */
-async function init() {
-  const b = bridge();
-  if (b) {
-    try { lang = await b.get_lang() || lang; } catch (e) {}
-  } else {
-    $("demo-badge").style.display = "";
-    lang = (navigator.language || "en").startsWith("zh") ? "zh" : "en";
-  }
-  applyLang();
-  syncOpts();
-  log(t("log.hello"));
-}
-if (window.pywebview) init();
-else window.addEventListener("pywebviewready", init, { once: true });
-setTimeout(() => { if (!bridge() && !els.log.hasChildNodes()) init(); }, 400);
-</script>
+<script src="i18n.js"></script>
+<script src="app.js"></script>
 </body>
 </html>
