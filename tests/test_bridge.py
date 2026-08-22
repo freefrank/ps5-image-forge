@@ -210,3 +210,23 @@ def test_payload_library_scan_and_notes(tmp_path: Path) -> None:
 def test_payload_scan_reports_bad_folder(tmp_path: Path) -> None:
     r = RecordingBridge().scan_payloads(str(tmp_path / "missing"))
     assert r["ok"] is False and r["items"] == []
+
+
+def test_known_services_exposed_to_the_page() -> None:
+    rows = RecordingBridge().list_known_services()
+    assert rows and {r["port"] for r in rows} >= {2121, 9021, 3232, 9090}
+
+
+def test_port_scan_pushes_results_and_a_summary() -> None:
+    b = RecordingBridge()
+    assert b.scan_ps5_ports("127.0.0.1", [1, 2])["ok"]
+    deadline = time.monotonic() + 30
+    while b.last("onScanDone") is None and time.monotonic() < deadline:
+        time.sleep(0.05)
+    summary = b.last("onScanDone")
+    assert summary is not None and summary[0]["total"] == 2
+    assert len([1 for n, _a in b.calls if n == "onPortResult"]) == 2
+
+
+def test_port_scan_rejects_empty_host() -> None:
+    assert RecordingBridge().scan_ps5_ports("  ")["ok"] is False

@@ -29,6 +29,7 @@ function applyLang() {
     if (el.id === "phase") return;              // shows live state
     el.textContent = t(el.dataset.i18n);
   });
+  $$("[data-i18n-ph]").forEach(el => el.placeholder = t(el.dataset.i18nPh));
   const ph = $("phase");
   ph.textContent = t("phase." + (ph.dataset.k || "standby"));
   $$("#lang-switch span").forEach(el =>
@@ -141,6 +142,9 @@ window.forge = {
     setPill("kl-status", false, t("klog.idle"));
     $("kl-start").disabled = false; $("kl-stop").disabled = true;
   },
+  onPortResult: r => addPortRow(r),
+  onScanDone: s => scanFinished(s),
+  onScanError: m => scanFinished(null, m),
   setLang: l => { lang = l; applyLang(); },
 };
 
@@ -335,6 +339,84 @@ async function refreshHome() {
     <td class="num">${human(h.size_bytes)}</td>
     <td><span class="badge ${esc(h.status)}">${esc((h.status || "").toUpperCase())}</span></td>
   </tr>`).join("")}</tbody></table>` : `<div class="empty">${t("empty.history")}</div>`;
+}
+
+/* ── PS5 MANAGER page ─────────────────────────────────── */
+/* One console, the ports the homebrew scene actually uses. A hit is not
+ * just a green dot: each row knows which page drives that service, so the
+ * scan doubles as the way in. */
+const PS5_TARGET = {                 // port → [page, host input, port input]
+  2121: ["ftp", "ftp-host", "ftp-port"],
+  1337: ["ftp", "ftp-host", "ftp-port"],
+  3232: ["klog", "kl-host", "kl-port"],
+  3233: ["klog", "kl-host", "kl-port"],
+  9021: ["payload", "pl-host", "pl-port"],
+  9020: ["payload", "pl-host", "pl-port"],
+  9090: ["payload", "pl-host", "pl-port"],
+};
+let scanSeen = 0;
+
+function parsePorts(raw) {
+  return raw.split(/[\s,;]+/).map(s => parseInt(s, 10))
+            .filter(n => n >= 1 && n <= 65535);
+}
+function addPortRow(r) {
+  scanSeen++;
+  $("ps5-empty").style.display = "none";
+  const tr = document.createElement("tr");
+  const jump = PS5_TARGET[r.port];
+  if (r.open && jump) { tr.classList.add("clickable"); tr.title = t("ps5.jump"); }
+  tr.innerHTML = `<td class="num">${r.port}</td>
+    <td>${esc(r.name)}</td>
+    <td class="${r.open ? "ok" : "dim"}">${t(r.open ? "ps5.open" : "ps5.closed")}</td>
+    <td class="num">${r.latency_ms == null ? "—" : r.latency_ms + " ms"}</td>
+    <td class="dim">${esc(r.note)}</td>`;
+  if (r.open && jump) tr.onclick = () => {
+    const [page, hostId, portId] = jump;
+    $(hostId).value = $("ps5-host").value.trim();
+    $(portId).value = r.port;
+    goto(page);
+  };
+  // open ports first, then arrival order — same rule the backend sorts by
+  const body = $("ps5-rows");
+  const before = r.open ? body.querySelector("tr:not(.open-row)") : null;
+  if (r.open) tr.classList.add("open-row");
+  body.insertBefore(tr, before);
+}
+function scanFinished(summary, error) {
+  $("ps5-scan").disabled = false;
+  $("ps5-stop").disabled = true;
+  if (error) { setPill("ps5-status", false, t("err.prefix") + error); return; }
+  if (summary.cancelled) { setPill("ps5-status", null, t("ps5.cancelled")); return; }
+  setPill("ps5-status", summary.open > 0,
+    t("ps5.result", { open: summary.open, total: summary.total }));
+}
+$("ps5-scan").onclick = async () => {
+  const host = $("ps5-host").value.trim();
+  if (!host) { setPill("ps5-status", false, t("msg.need_host")); return; }
+  $("ps5-rows").innerHTML = "";
+  $("ps5-empty").style.display = "none";
+  scanSeen = 0;
+  setPill("ps5-status", null, t("ps5.scanning"));
+  $("ps5-scan").disabled = true; $("ps5-stop").disabled = false;
+  const b = bridge();
+  if (!b) { demoScan(); return; }
+  const ports = parsePorts($("ps5-ports").value);
+  const r = await b.scan_ps5_ports(host, ports.length ? ports : null);
+  if (!r.ok) scanFinished(null, r.error);
+};
+$("ps5-stop").onclick = () => { const b = bridge(); if (b) b.cancel_scan(); };
+
+function demoScan() {
+  const rows = [
+    { port: 2121, name: "FTP (ftpsrv)", note: "GoldHEN / ftpsrv file server", open: true, latency_ms: 1.4 },
+    { port: 9021, name: "ELF loader", note: "etaHEN elfldr — send .elf payloads here", open: true, latency_ms: 2.1 },
+    { port: 3232, name: "Kernel log", note: "Kernel log stream", open: true, latency_ms: 1.9 },
+    { port: 1337, name: "FTP (etaHEN)", note: "etaHEN's built-in FTP server", open: false, latency_ms: null },
+    { port: 9090, name: "Payload (alt)", note: "Alternate loader port", open: false, latency_ms: null },
+  ];
+  rows.forEach((r, i) => setTimeout(() => addPortRow(r), 120 * (i + 1)));
+  setTimeout(() => scanFinished({ open: 3, total: rows.length }), 120 * (rows.length + 1));
 }
 
 /* ── FTP page ─────────────────────────────────────────── */

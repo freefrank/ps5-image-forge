@@ -221,6 +221,10 @@ tbody tr { cursor: pointer; transition: background .15s; }
 tbody tr:hover { background: rgba(0,229,255,.07); }
 tbody tr.sel { background: rgba(0,229,255,.13); box-shadow: inset 2px 0 0 var(--cyan); }
 td.num { text-align: right; color: var(--text-dim); }
+td.dim { color: var(--text-dim); }
+td.ok  { color: var(--ok); text-shadow: 0 0 7px currentColor; }
+tbody tr:not(.clickable) { cursor: default; }
+tbody tr.open-row td:first-child { box-shadow: inset 2px 0 0 var(--ok); }
 .badge { display: inline-block; padding: 1px 7px; font-size: 9px; letter-spacing: 1px;
   border: 1px solid currentColor; }
 .badge.exfat { color: var(--cyan); }

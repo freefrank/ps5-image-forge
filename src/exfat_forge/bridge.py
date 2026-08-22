@@ -17,7 +17,8 @@ import traceback
 from dataclasses import asdict
 from pathlib import Path
 
-from . import core, i18n, library, payloads, pipeline, ps5, ufs
+from . import (core, i18n, library, payloads, pipeline, ps5,
+               ps5_services, ufs)
 from .settings import History, Settings
 
 
@@ -30,6 +31,8 @@ class Bridge:
         self._worker: threading.Thread | None = None
         self._cancel: core.CancelToken | None = None
         self._klog: ps5.KernelLog | None = None
+        self._scanning: threading.Thread | None = None
+        self._scan_cancel: threading.Event | None = None
 
     # ── plumbing ──────────────────────────────────────────────────
 
@@ -243,6 +246,49 @@ class Bridge:
         res = ps5.probe(host, int(port))
         return {"reachable": res.reachable, "latency_ms": res.latency_ms,
                 "detail": res.detail}
+
+    def list_known_services(self) -> list[dict]:
+        return ps5_services.services_as_dicts()
+
+    def scan_ps5_ports(self, host: str, ports: list[int] | None = None) -> dict:
+        """Probe one console for the known service ports.
+
+        Runs on its own thread rather than through :meth:`_spawn`: a scan is
+        short and read-only, so it must not be refused because a build is
+        running, nor share the build's cancel token.
+        """
+        host = (host or "").strip()
+        if not host:
+            return {"ok": False, "error": "no host"}
+        if self._scanning and self._scanning.is_alive():
+            return {"ok": False, "error": "scan already running"}
+
+        wanted = [int(p) for p in ports] if ports else None
+        self._scan_cancel = threading.Event()
+        cancel = self._scan_cancel
+
+        def run() -> None:
+            try:
+                results = ps5_services.scan_host(
+                    host, ports=wanted, cancel=cancel,
+                    on_result=lambda r: self._js("onPortResult", asdict(r)))
+            except Exception as exc:                    # DNS, bad host, ...
+                self._js("onScanError", str(exc))
+                return
+            self._js("onScanDone", {
+                "host": host,
+                "open": sum(1 for r in results if r.open),
+                "total": len(results),
+                "cancelled": cancel.is_set(),
+            })
+
+        self._scanning = threading.Thread(target=run, daemon=True)
+        self._scanning.start()
+        return {"ok": True, "host": host}
+
+    def cancel_scan(self) -> None:
+        if self._scan_cancel:
+            self._scan_cancel.set()
 
     def ps5_list(self, host: str, port: int, path: str) -> dict:
         try:

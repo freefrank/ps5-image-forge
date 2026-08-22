@@ -35,6 +35,7 @@
     <div class="nav" data-page="history"><span class="ico">◷</span><span data-i18n="nav.history">History</span></div>
 
     <div class="grp" data-i18n="nav.grp.ps5">PS5</div>
+    <div class="nav" data-page="ps5"><span class="ico">◎</span><span data-i18n="nav.ps5">PS5 Manager</span></div>
     <div class="nav" data-page="ftp"><span class="ico">⇅</span><span data-i18n="nav.ftp">FTP</span></div>
     <div class="nav" data-page="klog"><span class="ico">≣</span><span data-i18n="nav.klog">Kernel Log</span></div>
     <div class="nav" data-page="payload"><span class="ico">➤</span><span data-i18n="nav.payload">Payloads</span></div>
@@ -260,6 +261,40 @@
     </section>
 
     <!-- ── FTP ──────────────────────────────────────────── -->
+    <!-- ── PS5 MANAGER ────────────────────── -->
+    <section class="page" id="page-ps5">
+      <div class="panel">
+        <span class="tag" data-i18n="tag.console_host">CONSOLE</span>
+        <div class="row">
+          <label class="field" data-i18n="lbl.host">PS5 IP</label>
+          <input type="text" id="ps5-host" spellcheck="false" placeholder="192.168.1.42">
+          <button id="ps5-scan" data-i18n="btn.scan">SCAN</button>
+          <button id="ps5-stop" class="danger" disabled data-i18n="btn.stop">STOP</button>
+        </div>
+        <div class="row">
+          <label class="field" data-i18n="lbl.ports">PORTS</label>
+          <input type="text" id="ps5-ports" spellcheck="false" data-i18n-ph="ph.ports" placeholder="blank = all known ports">
+        </div>
+        <div class="row">
+          <span class="pill" id="ps5-status"><span class="dot"></span><span data-i18n="ps5.idle">Not scanned</span></span>
+          <span style="margin-left:12px;color:var(--text-dim);font-size:10.5px" data-i18n="ps5.hint">Probes only the address you type — no network discovery.</span>
+        </div>
+      </div>
+      <div class="panel">
+        <span class="tag" data-i18n="tag.services">SERVICES</span>
+        <div style="max-height:330px;overflow-y:auto">
+          <table><thead><tr>
+            <th class="num" data-i18n="col.port">PORT</th>
+            <th data-i18n="col.service">SERVICE</th>
+            <th data-i18n="col.state">STATE</th>
+            <th class="num" data-i18n="col.latency">RTT</th>
+            <th data-i18n="col.note">NOTE</th>
+          </tr></thead><tbody id="ps5-rows"></tbody></table>
+          <div class="empty" id="ps5-empty" data-i18n="empty.services">Run a scan to see what is listening</div>
+        </div>
+      </div>
+    </section>
+
     <section class="page" id="page-ftp">
       <div class="panel">
         <span class="tag" data-i18n="tag.connection">CONNECTION</span>

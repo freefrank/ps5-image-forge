@@ -5,7 +5,7 @@ README 面向使用者，本文件面向继续开发的人（包括未来的我�
 
 - 版本：v0.3.0（开发中）
 - 更新日期：2026-08-22
-- 测试：`63 passed`（`.venv/Scripts/python.exe -m pytest tests/ -q`）
+- 测试：`76 passed`（`.venv/Scripts/python.exe -m pytest tests/ -q`）
 
 ---
 
@@ -67,11 +67,11 @@ entry.py
 | `library.py` | 148 | 扫描 dump 与已构建镜像 | `test_bridge.py` | ✅ |
 | `payloads.py` | 349 | ELF 元数据提取、备注 | `test_payloads.py` | ✅ |
 | `ps5.py` | 274 | FTP / klog / payload 发送 | `test_ps5.py` | ✅ 协议层 |
-| `ps5_services.py` | 119 | 已知服务端口表、单机并发扫描 | — | ⚠️ **无测试、未接入 UI** |
-| `bridge.py` | 323 | JS API（27 个方法） | `test_bridge.py` | ✅ |
+| `ps5_services.py` | 119 | 已知服务端口表、单机并发扫描 | `test_ps5_services.py` | ✅ |
+| `bridge.py` | 362 | JS API（30 个方法） | `test_bridge.py` | ✅ |
 | `cli.py` | 190 | env/build/verify/extract/list/history | — | 手工验证 |
 | `i18n.py` | 88 | 后端消息本地化 | — | 随其他测试覆盖 |
-| `webui/` | 1128 | 11 个页面 + 赛博朋克样式 + 前端 i18n | demo 模式 | ✅ |
+| `webui/` | 1240 | 12 个页面 + 赛博朋克样式 + 前端 i18n | demo 模式 | ✅ |
 
 ---
 
@@ -85,11 +85,11 @@ entry.py
 | 2 | 带 `.ffpfsc` 压缩 | MkPFS PFSC 块压缩，deflate 级别 1–9，默认 9 |
 | 3 | 赛博朋克 UI + 动效 | 霓虹面板、扫描线、流光进度条；无边框窗口 + 自定义标题栏 |
 | 4 | i18n | 中/英实时切换，前后端各一套；CLI 跟随系统语言，`EXFAT_FORGE_LANG` 可覆盖 |
-| 5 | **完整复刻**原工具功能（含 PS5 工具）并现代化 | 11 个页面全部到位，见 README 功能表 |
+| 5 | **完整复刻**原工具功能（含 PS5 工具）并现代化 | 12 个页面全部到位，见 README 功能表 |
 | 6 | 集成 UFS2Tool + .NET | `vendor/ufs2tool/`；**用 `dotnet UFS2Tool.dll` 调用**，绕过 exe 清单里的 `requireAdministrator`（那是给 Dokan 挂载用的，makefs 不需要） |
 | 7 | Payload 库：选目录、从文件读信息与说明 | `payloads.py`：ELF 头 / build-id / `.comment` / `.rodata` 字符串推断名称、版本、能力标签 |
 | 8 | exFAT 默认簇 64 KB | `core.DEFAULT_CLUSTER_SIZE = 65536`；不再让 MkPFS 按树自选（会在 32K/64K 之间摇摆，破坏可复现性） |
-| 9 | PS5 Manager：扫描越狱主机常用端口 | `ps5_services.py` 已写，**UI 未做** —— 见 §5 |
+| 9 | PS5 Manager：扫描越狱主机常用端口 | 后端 + 页面已完成，见 §5.1 |
 | 10 | payload 来源可用 `45.56.67.85` | 用户明确表示该站点在 scene 内可信。**但不把二进制打进 exe**，见 §5.2 |
 
 ### 不可回退的不变量
@@ -121,22 +121,25 @@ UI 单独开发（无后端时进 demo 模式，用合成数据渲染全部界�
 python -m http.server 8899 -d src/exfat_forge/webui
 ```
 
-63 个测试覆盖：镜像构建/校验/**腐蚀检测**/逐字节解包往返、三格式流水线、
+76 个测试覆盖：镜像构建/校验/**腐蚀检测**/逐字节解包往返、三格式流水线、
 设置与历史持久化（含损坏文件与旧版本字段）、库扫描、payload ELF 解析（含真实 PS5 payload）、
-PS5 协议（本地 socket 服务器模拟真实线路行为）、GUI 全部后端接口（无窗口驱动）。
+PS5 协议与端口扫描（本地 socket 服务器模拟真实线路行为）、GUI 全部后端接口（无窗口驱动）。
+
+前端另有一致性检查（手动跑）：`index.html` 的 `data-i18n` / `data-i18n-ph` 键
+与 `app.js` 里 `t("…")` 用到的键，必须在 zh / en 两张表里都存在且两表键集相同。
 
 ---
 
-## 5. 待办：PS5 Manager
+## 5. PS5 Manager
 
 用户需求原文：
 
 > 加一个 PS5 Manager，扫描 jailbroken 的 PS5 port，比如常用的 9021 payload、2121 ftp 等。
 > 你可以搜索一下常用 elf，甚至可以从 45.56.67.85 扫一下各个版本的 elf，内置在软件中。
 
-### 5.1 端口扫描（后端已完成，前端未做）
+### 5.1 端口扫描（已完成）
 
-`ps5_services.py` 已实现并跑通：
+`ps5_services.py`：
 
 - `KNOWN_SERVICES`：11 条。端口取值来自原工具 `ui/tab_ps5_mgr.py` 的实际默认值
   （`ftp_port=2121`、`klog_port=3232`、`pl_port=9090`）以及全代码库出现频次统计
@@ -145,19 +148,19 @@ PS5 协议（本地 socket 服务器模拟真实线路行为）、GUI 全部后�
   `on_result` 回调让 UI 能逐条填表，返回结果按"开放优先 + 规范顺序"排序。
 
 **边界（有意为之，不要扩大）**：只扫**一台**用户自己输入的主机，
-不做网段/主机发现。模块 docstring 里写明了这一点，改动时请保留。
+不做网段 / 主机发现。模块 docstring 与页面提示里都写明了这一点，改动时请保留。
 
-待办：
+`bridge.py`：`list_known_services()` / `scan_ps5_ports(host, ports=None)` / `cancel_scan()`。
+扫描**走独立线程**，不经 `_spawn` —— 它短、只读，不该因为正在构建镜像而被拒绝，
+也不该和构建共用同一个 cancel token。结果通过 `onPortResult` 逐条推送，
+收尾推 `onScanDone`（含 `open` / `total` / `cancelled`），异常推 `onScanError`。
 
-- [ ] `tests/test_ps5_services.py`：端口表完整性、`scan_host` 对本地监听端口/关闭端口的判定、
-      `cancel` 生效、自定义 `ports` 列表、`on_result` 回调次数
-- [ ] `bridge.py`：`list_known_services()`、`scan_ps5_ports(host, ports=None)`（走 `_spawn`，
-      经 `onPortResult` 推送逐条结果，复用现有 cancel 机制）
-- [ ] `webui/index.html`：新增 `data-page="ps5"` 页面 + 侧栏入口
-- [ ] `webui/i18n.js`：zh/en 文案
-- [ ] `webui/app.js`：扫描表格、开放端口高亮、点击某行直达对应页面
-      （2121/1337 → FTP 页；9021/9020/9090 → Payload 页；3232/3233 → 内核日志页）——
-      这是把 Manager 变成"控制台总览"而不是又一个端口扫描器的关键
+页面 `#page-ps5`：主机输入 + 可选自定义端口列表（留空 = 全部已知端口）、
+实时填充的服务表、开放端口置顶并带绿色标记。
+
+**关键设计**：命中不只是一个绿点 —— `PS5_TARGET` 把端口映射到对应功能页，
+点开放行会把主机与端口填进那一页并跳转（2121/1337 → FTP，3232/3233 → 内核日志，
+9021/9020/9090 → Payload）。这是让 Manager 成为"主机总览与入口"而不是又一个端口扫描器的关键。
 
 ### 5.2 Payload 目录（设计已定，未实现）
 
