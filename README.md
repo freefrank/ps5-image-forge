@@ -1,22 +1,42 @@
 # exFAT Forge
 
-免挂载的 PS5 游戏 dump → exFAT / PFS 镜像构建工具。
+PS5 游戏 dump 镜像工具 —— exFAT Image Builder 的现代化免挂载重构版。
 
 ## 为什么重写
 
-原工具（exFAT Image Builder）的构建管线是 **OSFMount 挂盘符 + format.com + robocopy**，
-在实际使用中暴露了四个结构性问题：
+原工具的构建管线是 **OSFMount 挂盘符 + format.com + robocopy**，实际使用中暴露了四个结构性问题：
 
 | 问题 | 原因 | 本工具的做法 |
 |---|---|---|
 | 非英文 Windows 上成功的镜像被误删 | 解析 robocopy 摘要只认英文 `Files :` | 不用 robocopy，直接写镜像字节 |
-| 必须管理员权限，且 UAC 自提权丢弃调用方 PATH | OSFMount 挂载需要提权 | 不挂载，普通权限即可 |
-| 挂载盘符与 WSL/网络盘冲突（如 Z:） | 挂载点按序抢占盘符 | 没有挂载这一步 |
+| 必须管理员权限，UAC 自提权丢弃调用方 PATH | OSFMount 挂载需要提权 | 不挂载，普通权限即可 |
+| 挂载盘符与 WSL / 网络盘冲突（如 Z:） | 挂载点按序抢占盘符 | 没有挂载这一步 |
 | 两个实例互删对方正在写的镜像 | 收尾检查删除"可疑"输出 | 写 `.part` 后原子改名；从不删除本次运行没创建的文件 |
 
-核心写入/读取逻辑来自 [MkPFS](https://github.com/PSBrew/MkPFS)（GPL-3.0）的
-纯 Python exFAT 序列化器——布局一次算好、按偏移顺序直写，
-校验用同一个库把镜像逐字节读回来和源目录比对，全程零挂载、零文本解析。
+## 功能
+
+| 页面 | 说明 |
+|---|---|
+| **首页** | 环境状态、快捷入口、最近构建 |
+| **构建** | dump → exFAT / ffpkg / PFS，PFS 可选中间格式，实时遥测 |
+| **解包** | 任意格式镜像 → 目录 |
+| **检视** | 读取镜像结构与文件树，不挂载 |
+| **游戏库** | 扫描并浏览源 dump 与已构建镜像 |
+| **历史** | 构建记录（含失败原因） |
+| **FTP** | 连接 PS5、浏览远程目录、上传镜像 |
+| **内核日志** | 实时接收 PS5 内核日志 |
+| **Payload** | 发送 ELF payload |
+| **设置** | 路径、簇大小、压缩、ffpkg 参数、PS5 连接信息 |
+
+界面为赛博朋克风格（霓虹面板、扫描线、流光进度条），中/英双语实时切换。
+
+## 格式支持
+
+| 格式 | 后端 | 依赖 |
+|---|---|---|
+| `.exfat` | MkPFS 纯 Python 序列化器 | 无 |
+| `.ffpfsc` (PFS) | MkPFS，PFSC 块压缩（deflate 1-9） | 无 |
+| `.ffpkg` (UFS) | 内置 UFS2Tool | .NET 8 运行时 |
 
 ## 安装
 
@@ -28,52 +48,52 @@ pip install -e .
 
 ```bash
 pip install pyinstaller
-python -m PyInstaller --onefile --windowed --name exFAT-Forge --collect-submodules mkpfs --collect-all webview --add-data "src/exfat_forge/webui;exfat_forge/webui" entry.py
+python -m PyInstaller --onefile --windowed --name exFAT-Forge --collect-submodules mkpfs --collect-all webview --add-data "src/exfat_forge/webui;exfat_forge/webui" --add-data "vendor/ufs2tool;ufs2tool" entry.py
 ```
 
-产出 `dist/exFAT-Forge.exe`（约 15 MB）：双击进 GUI；带参数即为 CLI；
-`--selftest` 在临时目录跑一遍 构建→校验→压缩打包 自检。
-中文 Windows 的 GBK 控制台已在入口处理（stdio 强制 UTF-8）。
+产出 `dist/exFAT-Forge.exe`（约 18 MB）：双击进 GUI；带参数即 CLI；`--selftest` 自检。
 
-## 用法
+## CLI
 
 ```bash
-# 构建 exFAT 镜像（默认输出到源目录旁，自动读 param.json 命名）
+exfat-forge env
 exfat-forge build E:\PPSA21564-app0 -o D:\PS5
-
-# 一步到 PFS（PFSC 块压缩默认开启，deflate 等级 9）
-exfat-forge build E:\PPSA21564-app0 -o D:\PS5 --pfs
-exfat-forge build E:\PPSA21564-app0 -o D:\PS5 --pfs --level 6 --threads 8
-exfat-forge build E:\PPSA21564-app0 -o D:\PS5 --pfs --no-compress
-
-# 校验既有镜像（结构 + 与源目录比对）
+exfat-forge build E:\dump -o D:\PS5 -f pfs --level 6
+exfat-forge build E:\dump -o D:\PS5 -f ffpkg
+exfat-forge build E:\dump -o D:\PS5 -f pfs --via ffpkg --keep-intermediate
 exfat-forge verify D:\PS5\PPSA21564.exfat --source E:\PPSA21564-app0
-
-# 解包 / 查看
-exfat-forge extract D:\PS5\PPSA21564.exfat D:\unpacked
+exfat-forge extract D:\PS5\PPSA21564.ffpfsc D:\unpacked
 exfat-forge list D:\PS5\PPSA21564.exfat
-
-# 图形界面（赛博朋克风 WebView2 界面，中/英切换）
-exfat-forge-gui
+exfat-forge history
 ```
 
-## GUI 与 i18n
+CLI 消息跟随系统语言，`EXFAT_FORGE_LANG=en|zh` 可覆盖。
 
-GUI 由 `src/exfat_forge/webui/index.html` 驱动（pywebview + WebView2，Win11 自带运行时）：
-霓虹面板、扫描线、流光进度条、实时遥测（速度/ETA）与控制台日志。
-直接用浏览器打开该 HTML 会进入演示模式（假数据跑完整流程），方便调样式。
-
-界面语言中/英实时切换；CLI 消息跟随系统语言（中文 Windows 出中文），
-可用 `EXFAT_FORGE_LANG=en|zh` 覆盖。
-
-## 测试
+## 开发
 
 ```bash
 pytest tests/
 ```
 
-端到端覆盖：构建 → 结构校验 → 腐蚀检测 → 解包逐字节比对 → 取消语义 → 失败不覆盖既有成品。
+47 个测试覆盖：镜像构建/校验/腐蚀检测/逐字节解包往返、三格式流水线、
+设置与历史持久化（含损坏文件与旧版本字段）、库扫描、PS5 协议（本地 socket
+模拟真实线路行为）、以及 GUI 的完整后端接口（无窗口驱动）。
+
+UI 可直接在浏览器里开发：
+
+```bash
+python -m http.server 8899 -d src/exfat_forge/webui
+```
+
+无后端时页面进入 demo 模式，用合成数据渲染全部界面。
+
+## 未在真机验证
+
+PS5 网络功能（FTP / 内核日志 / Payload）的协议逻辑用本地 socket 服务器验证过，
+但**没有对真实 PS5 主机测试过**。
 
 ## License
 
-GPL-3.0（跟随 MkPFS 上游）。
+GPL-3.0（跟随 [MkPFS](https://github.com/PSBrew/MkPFS) 上游）。
+`vendor/ufs2tool/` 内的 UFS2Tool 程序集来自 exFAT Image Builder v4.0.2，
+详见该目录下的 `PROVENANCE.md`。
