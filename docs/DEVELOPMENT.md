@@ -5,7 +5,7 @@ README 面向使用者，本文件面向继续开发的人（包括未来的我�
 
 - 版本：v0.3.0（开发中）
 - 更新日期：2026-08-22
-- 测试：`76 passed`（`.venv/Scripts/python.exe -m pytest tests/ -q`）
+- 测试：`91 passed`（`.venv/Scripts/python.exe -m pytest tests/ -q`）
 
 ---
 
@@ -50,6 +50,7 @@ entry.py
                           ├─ payloads.py   payload ELF 解析
                           ├─ ps5.py        FTP / 内核日志 / payload 发送
                           ├─ ps5_services.py  已知端口表 + 单机端口扫描
+                          ├─ catalog.py    payload 目录（元数据 + 按需下载）
                           └─ settings.py   设置 / 历史持久化
 ```
 
@@ -68,7 +69,8 @@ entry.py
 | `payloads.py` | 349 | ELF 元数据提取、备注 | `test_payloads.py` | ✅ |
 | `ps5.py` | 274 | FTP / klog / payload 发送 | `test_ps5.py` | ✅ 协议层 |
 | `ps5_services.py` | 119 | 已知服务端口表、单机并发扫描 | `test_ps5_services.py` | ✅ |
-| `bridge.py` | 362 | JS API（30 个方法） | `test_bridge.py` | ✅ |
+| `catalog.py` | 161 | payload 目录读取与按需下载 | `test_catalog.py` | ✅ |
+| `bridge.py` | 425 | JS API（34 个方法） | `test_bridge.py` | ✅ |
 | `cli.py` | 190 | env/build/verify/extract/list/history | — | 手工验证 |
 | `i18n.py` | 88 | 后端消息本地化 | — | 随其他测试覆盖 |
 | `webui/` | 1240 | 12 个页面 + 赛博朋克样式 + 前端 i18n | demo 模式 | ✅ |
@@ -112,7 +114,7 @@ entry.py
 ```
 
 ```bash
-python -m PyInstaller --onefile --windowed --name exFAT-Forge --collect-submodules mkpfs --collect-all webview --add-data "src/exfat_forge/webui;exfat_forge/webui" --add-data "vendor/ufs2tool;ufs2tool" entry.py
+python -m PyInstaller --onefile --windowed --name exFAT-Forge --collect-submodules mkpfs --collect-all webview --add-data "src/exfat_forge/webui;exfat_forge/webui" --add-data "src/exfat_forge/payload_catalog.json;exfat_forge" --add-data "vendor/ufs2tool;ufs2tool" entry.py
 ```
 
 UI 单独开发（无后端时进 demo 模式，用合成数据渲染全部界面）：
@@ -121,9 +123,10 @@ UI 单独开发（无后端时进 demo 模式，用合成数据渲染全部界�
 python -m http.server 8899 -d src/exfat_forge/webui
 ```
 
-76 个测试覆盖：镜像构建/校验/**腐蚀检测**/逐字节解包往返、三格式流水线、
+91 个测试覆盖：镜像构建/校验/**腐蚀检测**/逐字节解包往返、三格式流水线、
 设置与历史持久化（含损坏文件与旧版本字段）、库扫描、payload ELF 解析（含真实 PS5 payload）、
-PS5 协议与端口扫描（本地 socket 服务器模拟真实线路行为）、GUI 全部后端接口（无窗口驱动）。
+PS5 协议与端口扫描（本地 socket 服务器模拟真实线路行为）、
+payload 目录与下载（含取消 / 失败不留残留文件 / 拒绝非 https）、GUI 全部后端接口（无窗口驱动）。
 
 前端另有一致性检查（手动跑）：`index.html` 的 `data-i18n` / `data-i18n-ph` 键
 与 `app.js` 里 `t("…")` 用到的键，必须在 zh / en 两张表里都存在且两表键集相同。
@@ -162,11 +165,15 @@ PS5 协议与端口扫描（本地 socket 服务器模拟真实线路行为）�
 点开放行会把主机与端口填进那一页并跳转（2121/1337 → FTP，3232/3233 → 内核日志，
 9021/9020/9090 → Payload）。这是让 Manager 成为"主机总览与入口"而不是又一个端口扫描器的关键。
 
-### 5.2 Payload 目录（设计已定，未实现）
+### 5.2 Payload 目录（已完成）
 
 用户点名的来源 `http://45.56.67.85/`：curl 探测结果是一个 `manuals.playstation.net` 标题的跳转页，
-按 PS5 浏览器 UA 与固件版本分流 —— FW ≤ 5.50 → `/umtx2/`，其余 → `/pooP2JB/`，两条路径同时也以普通链接暴露。
+按 PS5 浏览器 UA 与固件版本分流 —— FW ≤ 5.50 → `/umtx2/`，其余 → `/pooP2JB/`。
 （WebFetch 会强制升级 HTTPS 而该站是自签证书，只能用 curl 只读查看。）
+
+`/umtx2/payload_map.js` 里就是一份现成的 payload 元数据表，
+而且每条的 `binarySource` 都指向**项目自己的 release 资产**（github.com / git.etawen.dev），
+不是该站点的镜像。这正好落在我们要的位置上。
 
 **决策：不把任何第三方二进制打进 exe。**
 
@@ -174,18 +181,29 @@ PS5 协议与端口扫描（本地 socket 服务器模拟真实线路行为）�
 而是：无法校验的第三方可执行文件一旦成为**分发物的一部分**，就变成了供应链风险，
 且 payload 版本更新远快于本工具的发版节奏，内置的那一份很快就是错的。
 
-**替代方案（要实现的就是这个）**：目录 + 按需下载。
+落地：
 
-- 内置的是**元数据**（名称、适用固件、用途、来源 URL），不是二进制
-- 用户点"获取"才下载，落到**用户自己的 payload 目录**，下载前显示来源与大小
-- 下载后交给现有 `payloads.py` 解析，与本地 payload 同等对待（能力标签、备注等）
-- 用户完全掌握硬盘上多了什么文件
+- `src/exfat_forge/payload_catalog.json`：19 条**纯元数据**
+  （id / 标题 / 文件名 / 作者 / 版本 / 说明 / 项目地址 / 下载地址 / 适用固件 / 目标端口）。
+  由 `payload_map.js` 转换而来，`metadata_source` 字段记录来源。
+- `catalog.py`：`load()` / `find()` / `matches_firmware()` / `download()`。
+  下载**只允许 https**（loopback 例外，测试用），写 `.part` 成功后改名，
+  可取消，已存在的文件默认不覆盖。
+- `bridge.py`：`payload_catalog()` / `download_catalog_payload()` / `cancel_download()` / `open_url()`。
+- Payload 页新增"目录"面板：筛选、逐条获取、进度百分比，完成后自动重扫本地库，
+  下载到的文件立刻按普通本地 payload 显示（能力标签、备注等）。
 
-待办：
+**两类条目**：16 条有 release 直链 → 显示"获取"；
+3 条只发布 release 页或 CI 产物（`libhijacker-game-patch`、`kstuff-toggle`、`rp-get-pin`）
+→ 显示"打开页面"，**不给一个必然失败的下载按钮**。
 
-- [ ] `payload_catalog.py`：条目结构（`name` / `firmware` / `kind` / `url` / `note` / `sha256?`）
-- [ ] 下载逻辑：进度回调、可取消、写 `.part` 后改名（同 §3 不变量 4）
-- [ ] Payload 页增加"目录"分栏，与"本地库"并列
+**维护**：`python tools/check_catalog_links.py` 逐条发范围 GET 复查链接，
+死链退出码非 0。**不进测试套件** —— 它要联网，且别人删了自己的 release
+不应该让其他人的构建变红。2026-08-22 检查：19/19 全部可达。
+
+（转换时已发现并修掉两处死链：`GoldHEN/ps5debug` 仓库已消失，删除该条 ——
+没有拿别人的 fork 顶替，那正是不该做的静默替换；`kstuff-toggle` 的 CI 产物过期，
+改指向它现在的 release 页，并注明发布形式是 .zip。）
 
 ---
 

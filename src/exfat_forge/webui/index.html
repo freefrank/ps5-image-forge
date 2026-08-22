@@ -400,6 +400,27 @@
       </div>
 
       <div class="panel">
+        <span class="tag" data-i18n="tag.catalog">CATALOG</span>
+        <div class="row">
+          <input type="text" id="cat-filter" spellcheck="false" data-i18n-ph="ph.filter" placeholder="filter by name, author or firmware">
+          <button id="cat-load" data-i18n="btn.refresh">REFRESH</button>
+          <button id="cat-cancel" class="danger" disabled data-i18n="btn.stop">STOP</button>
+        </div>
+        <div class="hint" data-i18n="payload.cathint">Metadata only — nothing is bundled. Fetching a payload downloads it from the project's own release into your payload folder.</div>
+        <div style="max-height:250px;overflow-y:auto;margin-top:8px">
+          <table><thead><tr>
+            <th data-i18n="col.name">NAME</th>
+            <th data-i18n="col.author">AUTHOR</th>
+            <th data-i18n="col.version">VER</th>
+            <th data-i18n="col.fw">FW</th>
+            <th data-i18n="col.get">GET</th>
+          </tr></thead><tbody id="cat-list"></tbody></table>
+          <div class="empty" id="cat-empty" data-i18n="empty.catalog">Press refresh to load the catalog</div>
+        </div>
+        <div class="hint" id="cat-source" style="margin-top:6px"></div>
+      </div>
+
+      <div class="panel">
         <span class="tag" data-i18n="tag.connection">SEND</span>
         <div class="row">
           <label class="field" data-i18n="lbl.host">PS5 IP</label>

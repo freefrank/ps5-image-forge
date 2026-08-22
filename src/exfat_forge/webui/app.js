@@ -11,6 +11,7 @@ const $$ = sel => Array.from(document.querySelectorAll(sel));
 const bridge = () => (window.pywebview && window.pywebview.api) || null;
 
 let lang = "zh";
+let scanRows = [], catItems = [];
 const S = {                      // build page state
   mode: "exfat", verify: true, compress: true, keep: false,
   overwrite: false, follow: true, running: false, t0: 0,
@@ -36,6 +37,8 @@ function applyLang() {
     el.classList.toggle("on", el.dataset.lang === lang));
   document.documentElement.lang = lang;
   renderHistory(lastHistory);
+  if (scanRows.length) renderPorts();
+  if (catItems.length) renderCatalog();
 }
 
 /* ── helpers ──────────────────────────────────────────── */
@@ -141,6 +144,23 @@ window.forge = {
     log("kl-log", t("err.prefix") + m, "err");
     setPill("kl-status", false, t("klog.idle"));
     $("kl-start").disabled = false; $("kl-stop").disabled = true;
+  },
+  onDownload: d => {
+    const el = $("dl-" + d.id);
+    if (el) el.textContent = d.total
+      ? " " + Math.round(100 * d.done / d.total) + "%"
+      : " " + human(d.done);
+  },
+  onDownloadDone: d => {
+    const el = $("dl-" + d.id); if (el) el.textContent = " ✓";
+    downloadEnded();
+    log("pl-log", t("cat.done", { name: d.name }), "ok");
+    scanPayloads();
+  },
+  onDownloadError: d => {
+    const el = $("dl-" + d.id); if (el) el.textContent = "";
+    downloadEnded();
+    log("pl-log", t("err.prefix") + d.error, "err");
   },
   onPortResult: r => addPortRow(r),
   onScanDone: s => scanFinished(s),
@@ -354,34 +374,34 @@ const PS5_TARGET = {                 // port → [page, host input, port input]
   9020: ["payload", "pl-host", "pl-port"],
   9090: ["payload", "pl-host", "pl-port"],
 };
-let scanSeen = 0;
 
 function parsePorts(raw) {
   return raw.split(/[\s,;]+/).map(s => parseInt(s, 10))
             .filter(n => n >= 1 && n <= 65535);
 }
-function addPortRow(r) {
-  scanSeen++;
-  $("ps5-empty").style.display = "none";
-  const tr = document.createElement("tr");
-  const jump = PS5_TARGET[r.port];
-  if (r.open && jump) { tr.classList.add("clickable"); tr.title = t("ps5.jump"); }
-  tr.innerHTML = `<td class="num">${r.port}</td>
-    <td>${esc(r.name)}</td>
-    <td class="${r.open ? "ok" : "dim"}">${t(r.open ? "ps5.open" : "ps5.closed")}</td>
-    <td class="num">${r.latency_ms == null ? "—" : r.latency_ms + " ms"}</td>
-    <td class="dim">${esc(r.note)}</td>`;
-  if (r.open && jump) tr.onclick = () => {
-    const [page, hostId, portId] = jump;
-    $(hostId).value = $("ps5-host").value.trim();
-    $(portId).value = r.port;
-    goto(page);
-  };
+function addPortRow(r) { scanRows.push(r); renderPorts(); }
+
+function renderPorts() {
   // open ports first, then arrival order — same rule the backend sorts by
-  const body = $("ps5-rows");
-  const before = r.open ? body.querySelector("tr:not(.open-row)") : null;
-  if (r.open) tr.classList.add("open-row");
-  body.insertBefore(tr, before);
+  const rows = scanRows.map((r, i) => [r, i])
+    .sort((a, b) => (b[0].open - a[0].open) || (a[1] - b[1])).map(x => x[0]);
+  $("ps5-rows").innerHTML = rows.map(r => {
+    const jump = r.open && PS5_TARGET[r.port];
+    return `<tr data-port="${r.port}" class="${r.open ? "open-row " : ""}${jump ? "clickable" : ""}"
+      ${jump ? `title="${esc(t("ps5.jump"))}"` : ""}>
+      <td class="num">${r.port}</td>
+      <td>${esc(r.name)}</td>
+      <td class="${r.open ? "ok" : "dim"}">${t(r.open ? "ps5.open" : "ps5.closed")}</td>
+      <td class="num">${r.latency_ms == null ? "—" : r.latency_ms + " ms"}</td>
+      <td class="dim">${esc(r.note)}</td></tr>`;
+  }).join("");
+  $("ps5-empty").style.display = rows.length ? "none" : "";
+  $$("#ps5-rows tr.clickable").forEach(tr => tr.onclick = () => {
+    const [page, hostId, portId] = PS5_TARGET[+tr.dataset.port];
+    $(hostId).value = $("ps5-host").value.trim();
+    $(portId).value = tr.dataset.port;
+    goto(page);
+  });
 }
 function scanFinished(summary, error) {
   $("ps5-scan").disabled = false;
@@ -396,7 +416,7 @@ $("ps5-scan").onclick = async () => {
   if (!host) { setPill("ps5-status", false, t("msg.need_host")); return; }
   $("ps5-rows").innerHTML = "";
   $("ps5-empty").style.display = "none";
-  scanSeen = 0;
+  scanRows = [];
   setPill("ps5-status", null, t("ps5.scanning"));
   $("ps5-scan").disabled = true; $("ps5-stop").disabled = false;
   const b = bridge();
@@ -560,6 +580,79 @@ function selectPayload(p) {
     log("pl-log", t("msg.note_saved"), "ok");
     scanPayloads();
   };
+}
+
+/* ── payload catalog ──────────────────────────────────── */
+/* Metadata ships with the app; binaries never do. "Get" pulls the file from
+ * the project's own release into the user's payload folder, then rescans so
+ * it shows up as an ordinary local payload. */
+let catBusy = null;
+
+$("cat-load").onclick = () => loadCatalog();
+$("cat-filter").oninput = () => renderCatalog();
+$("cat-cancel").onclick = () => { const b = bridge(); if (b) b.cancel_download(); };
+
+async function loadCatalog() {
+  const b = bridge();
+  if (!b) { catItems = demoCatalog(); $("cat-source").textContent = "demo"; renderCatalog(); return; }
+  const r = await b.payload_catalog();
+  if (!r.ok) { log("pl-log", t("err.prefix") + r.error, "err"); return; }
+  catItems = r.entries || [];
+  $("cat-source").textContent = t("cat.source", { url: r.source });
+  renderCatalog();
+}
+
+function renderCatalog() {
+  const q = $("cat-filter").value.trim().toLowerCase();
+  const rows = catItems.filter(e => !q ||
+    (e.title + " " + e.author + " " + (e.firmwares || []).join(" ")).toLowerCase().includes(q));
+  $("cat-list").innerHTML = rows.map(e => `<tr data-id="${esc(e.id)}">
+    <td>${esc(e.title)}<div class="pd-strings">${esc(e.description)}</div></td>
+    <td class="dim">${esc(e.author)}</td>
+    <td class="num">${esc(e.version)}</td>
+    <td class="dim">${e.firmwares ? esc(e.firmwares.join(" ")) : t("cat.allfw")}</td>
+    <td><span class="lnk" data-act="${e.binary_url ? "get" : "open"}">${
+      t(e.binary_url ? "cat.get" : "cat.page")}</span>
+      <span class="dl" id="dl-${esc(e.id)}"></span></td></tr>`).join("");
+  $("cat-empty").style.display = rows.length ? "none" : "";
+  $$("#cat-list .lnk").forEach(el => el.onclick = () => {
+    const e = catItems.find(x => x.id === el.closest("tr").dataset.id);
+    el.dataset.act === "get" ? getPayload(e) : openPage(e);
+  });
+}
+
+async function openPage(e) {
+  const b = bridge();
+  const url = e.page_url || e.project_url;
+  if (b) await b.open_url(url); else log("pl-log", "demo: " + url);
+}
+
+async function getPayload(e) {
+  const b = bridge();
+  if (!b) { log("pl-log", "demo: would fetch " + e.binary_url); return; }
+  if (!$("pl-dir").value.trim()) { log("pl-log", t("msg.need_folder"), "err"); return; }
+  catBusy = e.id;
+  $("cat-cancel").disabled = false;
+  log("pl-log", t("cat.fetching", { name: e.file, url: e.binary_url }));
+  const r = await b.download_catalog_payload(e.id, $("pl-dir").value.trim());
+  if (!r.ok) { downloadEnded(); log("pl-log", t("err.prefix") + r.error, "err"); }
+}
+
+function downloadEnded() { catBusy = null; $("cat-cancel").disabled = true; }
+
+function demoCatalog() {
+  return [
+    { id: "ftpsrv-ps5", title: "ftpsrv", file: "ftpsrv-ps5.elf", author: "ps5-payload-dev",
+      version: "0.21.1", description: "FTP server payload.", firmwares: null, port: 9021,
+      project_url: "https://github.com/ps5-payload-dev/ftpsrv",
+      binary_url: "https://github.com/ps5-payload-dev/ftpsrv/releases/download/v0.21.1/ftpsrv-ps5.elf",
+      page_url: null },
+    { id: "kstuff-toggle", title: "kstuff-toggle", file: "kstuff-toggle.elf", author: "EchoStretch",
+      version: "0.2", description: "Published as a CI artifact — opens the page.",
+      firmwares: ["3.", "4.", "5."], port: 9021,
+      project_url: "https://github.com/EchoStretch/kstuff-toggle",
+      binary_url: null, page_url: "https://github.com/EchoStretch/kstuff-toggle/actions/runs/15086245462" },
+  ];
 }
 
 $("pl-send").onclick = async () => {

@@ -236,6 +236,10 @@ tbody tr.open-row td:first-child { box-shadow: inset 2px 0 0 var(--ok); }
 
 .empty { color: var(--text-dim); text-align: center; padding: 26px; font-size: 11px; }
 .hint { color: var(--text-dim); font-size: 10.5px; margin-top: 5px; line-height: 1.5; }
+.lnk { color: var(--cyan); cursor: pointer; font-size: 10.5px; letter-spacing: .06em;
+       border-bottom: 1px solid rgba(0,229,255,.35); }
+.lnk:hover { text-shadow: 0 0 8px currentColor; border-bottom-color: currentColor; }
+.dl { color: var(--ok); font-size: 10.5px; font-variant-numeric: tabular-nums; }
 .pill { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px;
   border: 1px solid var(--cyan-dim); font-size: 10.5px; color: var(--text-dim); }
 .pill.good { color: var(--ok); border-color: var(--ok); }

@@ -230,3 +230,25 @@ def test_port_scan_pushes_results_and_a_summary() -> None:
 
 def test_port_scan_rejects_empty_host() -> None:
     assert RecordingBridge().scan_ps5_ports("  ")["ok"] is False
+
+
+def test_payload_catalog_exposes_metadata_only() -> None:
+    r = RecordingBridge().payload_catalog()
+    assert r["ok"] and len(r["entries"]) >= 19
+    assert r["source"]
+    for e in r["entries"]:
+        assert e["binary_url"] or e["page_url"]
+
+
+def test_download_needs_a_folder() -> None:
+    assert RecordingBridge().download_catalog_payload("ftpsrv-ps5")["ok"] is False
+
+
+def test_download_rejects_unknown_entry(tmp_path: Path) -> None:
+    b = RecordingBridge()
+    r = b.download_catalog_payload("nope", str(tmp_path))
+    assert r["ok"] is False and "unknown" in r["error"]
+
+
+def test_open_url_refuses_non_https() -> None:
+    assert RecordingBridge().open_url("file:///C:/Windows")["ok"] is False

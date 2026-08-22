@@ -17,7 +17,7 @@ import traceback
 from dataclasses import asdict
 from pathlib import Path
 
-from . import (core, i18n, library, payloads, pipeline, ps5,
+from . import (catalog, core, i18n, library, payloads, pipeline, ps5,
                ps5_services, ufs)
 from .settings import History, Settings
 
@@ -33,6 +33,8 @@ class Bridge:
         self._klog: ps5.KernelLog | None = None
         self._scanning: threading.Thread | None = None
         self._scan_cancel: threading.Event | None = None
+        self._dl_cancel: threading.Event | None = None
+        self._downloading: threading.Thread | None = None
 
     # ── plumbing ──────────────────────────────────────────────────
 
@@ -336,6 +338,60 @@ class Bridge:
 
     def save_payload_note(self, path: str, note: str) -> dict:
         payloads.save_note(path, note)
+        return {"ok": True}
+
+    # ── payload catalogue ─────────────────────────────────────────
+
+    def payload_catalog(self) -> dict:
+        """Metadata for the known payloads. Ships no binaries — see catalog.py."""
+        try:
+            return {"ok": True, "source": catalog.metadata_source(),
+                    "entries": catalog.as_dicts()}
+        except catalog.CatalogError as exc:
+            return {"ok": False, "error": str(exc), "entries": []}
+
+    def download_catalog_payload(self, entry_id: str, folder: str = "",
+                                 overwrite: bool = False) -> dict:
+        """Fetch one catalogue entry into the user's payload folder."""
+        target = (folder or "").strip('" ') or self.settings.payload_dir
+        if not target:
+            return {"ok": False, "error": "no payload folder selected"}
+        try:
+            entry = catalog.find(entry_id)
+        except catalog.CatalogError as exc:
+            return {"ok": False, "error": str(exc)}
+        if self._dl_cancel and not self._dl_cancel.is_set() and                 self._downloading and self._downloading.is_alive():
+            return {"ok": False, "error": "a download is already running"}
+
+        self._dl_cancel = threading.Event()
+        cancel = self._dl_cancel
+
+        def run() -> None:
+            try:
+                path = catalog.download(
+                    entry, Path(target), cancel=cancel, overwrite=bool(overwrite),
+                    progress=lambda d, n: self._js("onDownload", {
+                        "id": entry.id, "done": d, "total": n}))
+            except catalog.CatalogError as exc:
+                self._js("onDownloadError", {"id": entry.id, "error": str(exc)})
+                return
+            self._js("onDownloadDone", {"id": entry.id, "path": str(path),
+                                        "name": path.name})
+
+        self._downloading = threading.Thread(target=run, daemon=True)
+        self._downloading.start()
+        return {"ok": True, "folder": target, "file": entry.file}
+
+    def cancel_download(self) -> None:
+        if self._dl_cancel:
+            self._dl_cancel.set()
+
+    def open_url(self, url: str) -> dict:
+        """Open a project page in the system browser, at the user's click."""
+        if not url.startswith("https://"):
+            return {"ok": False, "error": "refusing non-https url"}
+        import webbrowser
+        webbrowser.open(url)
         return {"ok": True}
 
     def ps5_send_payload(self, host: str, port: int, payload: str) -> dict:

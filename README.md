@@ -26,7 +26,7 @@ PS5 游戏 dump 镜像工具 —— exFAT Image Builder 的现代化免挂载重
 | **PS5 Manager** | 扫描一台主机上的常用越狱服务端口，命中可直接跳到对应功能页 |
 | **FTP** | 连接 PS5、浏览远程目录、上传镜像 |
 | **内核日志** | 实时接收 PS5 内核日志 |
-| **Payload** | Payload 库：扫描目录、自动读取 ELF 信息与能力、可写备注、发送到 PS5 |
+| **Payload** | Payload 库：扫描目录、自动读取 ELF 信息与能力、可写备注、发送到 PS5；内置目录可按需从项目 release 下载 |
 | **设置** | 路径、簇大小、压缩、ffpkg 参数、PS5 连接信息 |
 
 界面为赛博朋克风格（霓虹面板、扫描线、流光进度条），中/英双语实时切换。
@@ -49,7 +49,7 @@ pip install -e .
 
 ```bash
 pip install pyinstaller
-python -m PyInstaller --onefile --windowed --name exFAT-Forge --collect-submodules mkpfs --collect-all webview --add-data "src/exfat_forge/webui;exfat_forge/webui" --add-data "vendor/ufs2tool;ufs2tool" entry.py
+python -m PyInstaller --onefile --windowed --name exFAT-Forge --collect-submodules mkpfs --collect-all webview --add-data "src/exfat_forge/webui;exfat_forge/webui" --add-data "src/exfat_forge/payload_catalog.json;exfat_forge" --add-data "vendor/ufs2tool;ufs2tool" entry.py
 ```
 
 产出 `dist/exFAT-Forge.exe`（约 18 MB）：双击进 GUI；带参数即 CLI；`--selftest` 自检。
@@ -76,9 +76,9 @@ CLI 消息跟随系统语言，`EXFAT_FORGE_LANG=en|zh` 可覆盖。
 pytest tests/
 ```
 
-76 个测试覆盖：镜像构建/校验/腐蚀检测/逐字节解包往返、三格式流水线、
+91 个测试覆盖：镜像构建/校验/腐蚀检测/逐字节解包往返、三格式流水线、
 设置与历史持久化（含损坏文件与旧版本字段）、库扫描、payload ELF 解析
-（含真实 PS5 payload）、PS5 协议与端口扫描（本地 socket 模拟真实线路行为）、
+（含真实 PS5 payload）、PS5 协议与端口扫描（本地 socket 模拟真实线路行为）、payload 目录与下载、
 以及 GUI 的完整后端接口（无窗口驱动）。
 
 UI 可直接在浏览器里开发：
@@ -99,6 +99,16 @@ python -m http.server 8899 -d src/exfat_forge/webui
 备注存在 `%APPDATA%/exfat-forge/payload_notes.json`，不会改动 payload 文件本身。
 
 非 ELF 文件或架构异常的会标黄警告，避免发送必然失败的文件。
+
+### 内置目录
+
+Payload 页的"目录"面板内置 19 个常用 payload 的**元数据**（名称、作者、版本、
+适用固件、说明、项目地址）—— **不打包任何二进制**。点"获取"会从**项目自己的
+GitHub / Gitea release** 下载到你选的 payload 目录，下载中可取消，
+先写 `.part` 成功后改名。少数项目只发布 release 页或 CI 产物，这类条目显示
+"打开页面"而不是"获取"，不会给一个必然失败的下载按钮。
+
+链接有效性用 `python tools/check_catalog_links.py` 手动复查（需要联网，不进测试套件）。
 
 ## 未在真机验证
 

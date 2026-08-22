@@ -1,0 +1,304 @@
+{
+  "schema": 1,
+  "captured": "2026-08-22",
+  "metadata_source": "http://45.56.67.85/umtx2/payload_map.js",
+  "note": "Metadata only. Every binary_url points at the project's own release asset, so downloads come from upstream rather than from this file's source or from anything bundled in the exe. Links were checked on 2026-08-22; run tools/check_catalog_links.py to re-check.",
+  "entries": [
+    {
+      "id": "pldmgr",
+      "title": "PS5 Payload Manager",
+      "file": "pldmgr.elf",
+      "author": "itsPLK",
+      "version": "0.5.1",
+      "description": "Web-based dashboard to manage, import, and auto-load payloads. Pair with a Y2JB/BD-JB/Lua autoloader.",
+      "project_url": "https://github.com/itsPLK/ps5-payload-manager",
+      "binary_url": "https://github.com/itsPLK/ps5-payload-manager/releases/download/v0.5.1/pldmgr_v0.5.1.elf",
+      "page_url": null,
+      "firmwares": null,
+      "port": 9021
+    },
+    {
+      "id": "ps5-linux-loader",
+      "title": "PS5 Linux Loader",
+      "file": "ps5-linux-loader.elf",
+      "author": "TheFl0w, c0w-ar",
+      "version": "2.4",
+      "description": "Boots into Linux. Requires a linux-image on a USB drive or M.2 SSD. Reboot to return to PS5 UI.",
+      "project_url": "https://github.com/ps5-linux/ps5-linux-loader",
+      "binary_url": "https://github.com/ps5-linux/ps5-linux-loader/releases/download/v2.4/ps5-linux-loader.elf",
+      "page_url": null,
+      "firmwares": [
+        "3.",
+        "4.",
+        "5."
+      ],
+      "port": 9021
+    },
+    {
+      "id": "garlic-savemgr",
+      "title": "Garlic Savemgr",
+      "file": "garlic-savemgr.elf",
+      "author": "earthonion",
+      "version": "1.12",
+      "description": "Local PS5 save manager.",
+      "project_url": "https://git.etawen.dev/earthonion/garlic-savemgr",
+      "binary_url": "https://git.etawen.dev/earthonion/garlic-savemgr/releases/download/v1.12/garlic-savemgr.elf",
+      "page_url": null,
+      "firmwares": [
+        "3.",
+        "4.",
+        "5."
+      ],
+      "port": 9021
+    },
+    {
+      "id": "shadowmountplus",
+      "title": "ShadowMountPlus",
+      "file": "shadowmountplus.elf",
+      "author": "drakmor",
+      "version": "1.6beta16",
+      "description": "Automated background auto-mounter for game dumps from internal + external storage. Requires kstuff-lite v1.07+.",
+      "project_url": "https://github.com/drakmor/ShadowMountPlus",
+      "binary_url": "https://github.com/drakmor/ShadowMountPlus/releases/download/1.6beta16/shadowmountplus.elf",
+      "page_url": null,
+      "firmwares": [
+        "3.",
+        "4.",
+        "5."
+      ],
+      "port": 9021
+    },
+    {
+      "id": "elf-arsenal",
+      "title": "Elf Arsenal",
+      "file": "elf-arsenal.elf",
+      "author": "sonic-iso",
+      "version": "1.6.22",
+      "description": "All-in-one PS5 utility.",
+      "project_url": "https://git.etawen.dev/soniciso/elf-arsenal",
+      "binary_url": "https://git.etawen.dev/soniciso/elf-arsenal/releases/download/v1.6.22/elf-arsenal.elf",
+      "page_url": null,
+      "firmwares": [
+        "3.",
+        "4.",
+        "5."
+      ],
+      "port": 9021
+    },
+    {
+      "id": "etaHEN-2.5B",
+      "title": "etaHEN",
+      "file": "etaHEN-2.5B.bin",
+      "author": "LightningMods, Buzzer, sleirsgoevy, ChendoChap, astrelsky, illusion, CTN, SiSTR0, Nomadic",
+      "version": "2.5B",
+      "description": "AIO HEN",
+      "project_url": "https://github.com/etaHEN/etaHEN",
+      "binary_url": "https://github.com/etaHEN/etaHEN/releases/download/2.5B/etaHEN-2.5B.bin",
+      "page_url": null,
+      "firmwares": null,
+      "port": 9021
+    },
+    {
+      "id": "kstuff",
+      "title": "kstuff",
+      "file": "kstuff.elf",
+      "author": "sleirsgoevy, john-tornblom, EchoStretch, buzzer-re, idlesauce, BestPig, LightningMods, zecoxao",
+      "version": "1.6.7",
+      "description": "FPKG enabler. Full build (FW 3.00-10.01).",
+      "project_url": "https://github.com/EchoStretch/kstuff",
+      "binary_url": "https://github.com/EchoStretch/kstuff/releases/download/v1.6.7/kstuff.elf",
+      "page_url": null,
+      "firmwares": [
+        "3.",
+        "4.",
+        "5."
+      ],
+      "port": 9021
+    },
+    {
+      "id": "kstuff-lite",
+      "title": "kstuff-lite",
+      "file": "kstuff-lite.elf",
+      "author": "sleirsgoevy, john-tornblom, EchoStretch, buzzer-re, idlesauce, BestPig, LightningMods, zecoxao, drakmor",
+      "version": "1.10",
+      "description": "FPKG enabler, slimmed build (FW 3.00-12.70). Required by ShadowMountPlus.",
+      "project_url": "https://github.com/EchoStretch/kstuff-lite",
+      "binary_url": "https://github.com/EchoStretch/kstuff-lite/releases/download/v1.10/kstuff.elf",
+      "page_url": null,
+      "firmwares": [
+        "3.",
+        "4.",
+        "5."
+      ],
+      "port": 9021
+    },
+    {
+      "id": "byepervisor",
+      "title": "Byepervisor HEN",
+      "file": "byepervisor.elf",
+      "author": "SpecterDev, ChendoChap, flatz, fail0verflow, Znullptr, kiwidog, sleirsgoevy, EchoStretch, LightningMods, BestPig, zecoxao, TheOfficialFloW",
+      "version": "1.1",
+      "description": "FPKG enabler",
+      "project_url": "https://github.com/EchoStretch/Byepervisor",
+      "binary_url": "https://github.com/EchoStretch/Byepervisor/releases/download/1.1/byepervisor.elf",
+      "page_url": null,
+      "firmwares": [
+        "1.00",
+        "1.01",
+        "1.02",
+        "1.12",
+        "1.14",
+        "2.00",
+        "2.20",
+        "2.25",
+        "2.26",
+        "2.30",
+        "2.50",
+        "2.70"
+      ],
+      "port": 9021
+    },
+    {
+      "id": "libhijacker-game-patch.v1.160",
+      "title": "libhijacker game-patch",
+      "file": "libhijacker-game-patch.v1.160.elf",
+      "author": "illusion0001, astrelsky",
+      "version": "1.160",
+      "description": "Patches supported games to run at higher framerates, and adds debug menus to certain titles.",
+      "project_url": "https://github.com/illusion0001/libhijacker",
+      "binary_url": null,
+      "page_url": "https://github.com/illusion0001/libhijacker-game-patch/releases/tag/1.160-75ab26a3",
+      "firmwares": [
+        "3.",
+        "4."
+      ],
+      "port": null
+    },
+    {
+      "id": "websrv-ps5",
+      "title": "websrv",
+      "file": "websrv-ps5.elf",
+      "author": "john-tornblom",
+      "version": "0.34",
+      "description": "Custom homebrew loader. Runs on port 8080.",
+      "project_url": "https://github.com/ps5-payload-dev/websrv",
+      "binary_url": "https://github.com/ps5-payload-dev/websrv/releases/download/v0.34/websrv-ps5.elf",
+      "page_url": null,
+      "firmwares": null,
+      "port": 9021
+    },
+    {
+      "id": "ftpsrv-ps5",
+      "title": "ftpsrv",
+      "file": "ftpsrv-ps5.elf",
+      "author": "john-tornblom",
+      "version": "0.21.1",
+      "description": "FTP server. Runs on port 2121.",
+      "project_url": "https://github.com/ps5-payload-dev/ftpsrv",
+      "binary_url": "https://github.com/ps5-payload-dev/ftpsrv/releases/download/v0.21.1/ftpsrv-ps5.elf",
+      "page_url": null,
+      "firmwares": null,
+      "port": 9021
+    },
+    {
+      "id": "klogsrv-ps5",
+      "title": "klogsrv",
+      "file": "klogsrv-ps5.elf",
+      "author": "john-tornblom",
+      "version": "0.9",
+      "description": "Klog server. Runs on port 3232.",
+      "project_url": "https://github.com/ps5-payload-dev/klogsrv",
+      "binary_url": "https://github.com/ps5-payload-dev/klogsrv/releases/download/v0.9/klogsrv-ps5.elf",
+      "page_url": null,
+      "firmwares": null,
+      "port": 9021
+    },
+    {
+      "id": "shsrv-ps5",
+      "title": "shsrv",
+      "file": "shsrv-ps5.elf",
+      "author": "john-tornblom",
+      "version": "0.20",
+      "description": "Telnet shell server. Runs on port 2323.",
+      "project_url": "https://github.com/ps5-payload-dev/shsrv",
+      "binary_url": "https://github.com/ps5-payload-dev/shsrv/releases/download/v0.20/shsrv-ps5.elf",
+      "page_url": null,
+      "firmwares": null,
+      "port": 9021
+    },
+    {
+      "id": "gdbsrv-ps5",
+      "title": "gdbsrv",
+      "file": "gdbsrv-ps5.elf",
+      "author": "john-tornblom",
+      "version": "0.9",
+      "description": "GDB server. Runs on port 2159.",
+      "project_url": "https://github.com/ps5-payload-dev/gdbsrv",
+      "binary_url": "https://github.com/ps5-payload-dev/gdbsrv/releases/download/v0.9/gdbsrv-ps5.elf",
+      "page_url": null,
+      "firmwares": null,
+      "port": 9021
+    },
+    {
+      "id": "ps5debug_dizz",
+      "title": "ps5debug",
+      "file": "ps5debug_dizz.elf",
+      "author": "Dizz, astrelsky, John Tornblom, SiSTR0, golden, idlesauce",
+      "version": "0.0.1-r2",
+      "description": "Debugger, open source version by DizzRL",
+      "project_url": "https://github.com/idlesauce/ps5debug",
+      "binary_url": "https://github.com/idlesauce/ps5debug/releases/download/v0.0.1/ps5debug.elf",
+      "page_url": null,
+      "firmwares": null,
+      "port": 9021
+    },
+    {
+      "id": "kstuff-toggle",
+      "title": "kstuff-toggle",
+      "file": "kstuff-toggle.elf",
+      "author": "EchoStretch, john-tornblom",
+      "version": "0.6",
+      "description": "Kstuff Toggle Beta Published as a .zip release — unpack it yourself.",
+      "project_url": "https://github.com/EchoStretch/kstuff-toggle",
+      "binary_url": null,
+      "page_url": "https://github.com/EchoStretch/kstuff-toggle/releases",
+      "firmwares": [
+        "3.",
+        "4.",
+        "5."
+      ],
+      "port": 9021
+    },
+    {
+      "id": "ps5-versions",
+      "title": "ps5-versions",
+      "file": "ps5-versions.elf",
+      "author": "SiSTRo",
+      "version": "1.0",
+      "description": "Shows kernel build, os and sdk versions",
+      "project_url": "https://github.com/SiSTR0/ps5-versions",
+      "binary_url": "https://github.com/SiSTR0/ps5-versions/releases/download/v1.0/ps5-versions.elf",
+      "page_url": null,
+      "firmwares": [
+        "1.",
+        "2.",
+        "3.",
+        "4."
+      ],
+      "port": null
+    },
+    {
+      "id": "rp-get-pin",
+      "title": "ps5-remoteplay-get-pin",
+      "file": "rp-get-pin.elf",
+      "author": "idlesauce",
+      "version": "0.1.1",
+      "description": "Get Remote Play PIN for offline activated users. Send again to cancel.",
+      "project_url": "https://github.com/idlesauce/ps5-remoteplay-get-pin",
+      "binary_url": null,
+      "page_url": "https://github.com/idlesauce/ps5-remoteplay-get-pin/releases/tag/v0.1.1",
+      "firmwares": null,
+      "port": 9021
+    }
+  ]
+}
