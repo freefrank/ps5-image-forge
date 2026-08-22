@@ -85,7 +85,18 @@
     92% { opacity: .55; } 93% { opacity: .85; }
   }
   .sub { color: var(--text-dim); font-size: 11px; letter-spacing: 2px; }
-  .spacer { flex: 1; }
+  .drag-zone { flex: 1; display: flex; align-items: baseline; gap: 14px;
+    cursor: default; }
+  .win-btns { display: flex; gap: 6px; margin-left: 10px; align-self: center; }
+  .win-btns span {
+    width: 26px; height: 20px; display: inline-flex; align-items: center;
+    justify-content: center; font-size: 11px; cursor: pointer;
+    color: var(--text-dim); border: 1px solid transparent; transition: all .2s;
+  }
+  .win-btns span:hover { color: var(--cyan); border-color: var(--cyan-dim);
+    text-shadow: 0 0 6px var(--cyan); }
+  .win-btns #win-close:hover { color: var(--magenta);
+    border-color: var(--magenta); text-shadow: 0 0 8px var(--magenta); }
   .lang-switch {
     display: flex; border: 1px solid var(--cyan-dim); cursor: pointer;
     clip-path: polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px);
@@ -242,11 +253,16 @@
 <body>
 
 <header>
-  <h1>EXFAT<span class="accent">▮</span>FORGE</h1>
-  <span class="sub" data-i18n="tagline">MOUNT-FREE IMAGE COMPILER</span>
-  <span class="spacer"></span>
+  <div class="drag-zone pywebview-drag-region">
+    <h1>EXFAT<span class="accent">▮</span>FORGE</h1>
+    <span class="sub" data-i18n="tagline">MOUNT-FREE IMAGE COMPILER</span>
+  </div>
   <div class="lang-switch" id="lang-switch" title="Language">
     <span data-lang="zh">中</span><span data-lang="en">EN</span>
+  </div>
+  <div class="win-btns" id="win-btns">
+    <span id="win-min" title="Minimize">─</span>
+    <span id="win-close" title="Close">✕</span>
   </div>
 </header>
 
@@ -545,6 +561,8 @@ $("lang-switch").onclick = e => {
   if (l) { lang = l; applyLang();
     const b = bridge(); if (b && b.set_lang) b.set_lang(l); }
 };
+$("win-min").onclick = () => { const b = bridge(); if (b) b.minimize(); };
+$("win-close").onclick = () => { const b = bridge(); if (b) b.close(); else window.close(); };
 
 /* ── init ─────────────────────────────────────────── */
 async function init() {

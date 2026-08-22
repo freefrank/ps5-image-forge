@@ -55,6 +55,14 @@ class Api:
         if self._cancel:
             self._cancel.cancel()
 
+    def minimize(self) -> None:
+        if self.window:
+            self.window.minimize()
+
+    def close(self) -> None:
+        if self.window:
+            self.window.destroy()
+
     # ── build ─────────────────────────────────────────────────────
 
     def start_build(self, opts: dict) -> None:
@@ -136,6 +144,7 @@ def main() -> int:
         js_api=api,
         width=860, height=640, min_size=(720, 560),
         background_color="#070b14",
+        frameless=True, easy_drag=False,  # header carries the drag region
     )
     api.window = window
     webview.start()
