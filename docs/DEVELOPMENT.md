@@ -5,7 +5,7 @@ README 面向使用者，本文件面向继续开发的人（包括未来的我�
 
 - 版本：v0.6.0
 - 更新日期：2026-08-22
-- 测试：`127 passed`（`.venv/Scripts/python.exe -m pytest tests/ -q`）
+- 测试：`140 passed`（`.venv/Scripts/python.exe -m pytest tests/ -q`）
 
 ---
 

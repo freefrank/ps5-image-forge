@@ -97,6 +97,7 @@
           <label class="field" data-i18n="lbl.source">SOURCE</label>
           <input type="text" id="source" spellcheck="false">
           <button id="pick-source" data-i18n="btn.browse">SCAN…</button>
+          <button id="pick-source-image" data-i18n="btn.file">FILE…</button>
         </div>
         <div class="row">
           <label class="field" data-i18n="lbl.output">OUTPUT</label>
@@ -467,8 +468,9 @@
         <h2 data-i18n="bp.title">BACKPORK PREPARATION</h2>
         <div class="row">
           <label class="field" data-i18n="bp.source">SOURCE</label>
-          <input type="text" id="bp-dir" spellcheck="false" data-i18n-ph="bp.source.ph" placeholder="Game or backport-files folder">
+          <input type="text" id="bp-dir" spellcheck="false" data-i18n-ph="bp.source.ph" placeholder="Game folder or exfat/pfs/ffpkg image">
           <button id="bp-pick" data-i18n="btn.browse2">DIR…</button>
+          <button id="bp-pick-image" data-i18n="btn.file">FILE…</button>
           <button id="bp-scan" data-i18n="btn.scan">SCAN</button>
         </div>
         <div class="row">
@@ -486,6 +488,20 @@
         </div>
         <div class="hint" id="bp-backup-summary" data-i18n="bp.restore_none">No original backups found.</div>
         <div class="hint" data-i18n="bp.hint">Restore SELF/FSELF to ELF, patch SDK, fake-sign, verify and atomically replace.</div>
+        <div class="hint" data-i18n="bp.image_hint">For an image, files are edited inside it (unpack → edit → repack); only changed files are backed up beside the image.</div>
+      </div>
+
+      <div class="panel">
+        <span class="tag" data-i18n="bp.ov.tag">PATCH OVERWRITE</span>
+        <h2 data-i18n="bp.ov.title">APPLY A PATCH</h2>
+        <div class="row">
+          <label class="field" data-i18n="bp.ov.patch">PATCH</label>
+          <input type="text" id="bp-patch" spellcheck="false" data-i18n-ph="bp.ov.patch.ph" placeholder="A .zip or folder of replacement files">
+          <button id="bp-patch-pick-file" data-i18n="btn.file">FILE…</button>
+          <button id="bp-patch-pick-dir" data-i18n="btn.browse2">DIR…</button>
+          <button id="bp-overwrite" class="primary" data-i18n="bp.ov.apply">APPLY OVERWRITE</button>
+        </div>
+        <div class="hint" data-i18n="bp.ov.hint">Overlays the patch onto the SOURCE folder or image above, matching files by relative path. Nothing is deleted; replaced originals are backed up.</div>
       </div>
 
       <div class="panel">

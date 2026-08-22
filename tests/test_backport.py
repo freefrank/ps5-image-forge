@@ -186,6 +186,63 @@ def test_auto_backport_extracts_and_resigns_plaintext_fself(tmp_path: Path) -> N
     assert after.status == "signed" and after.sdk_band == 5
 
 
+def test_apply_overwrite_from_folder_replaces_and_adds(tmp_path: Path) -> None:
+    target = tmp_path / "game"
+    (target / "sce_sys").mkdir(parents=True)
+    (target / "eboot.bin").write_bytes(b"original eboot")
+    (target / "keep.txt").write_text("untouched", encoding="utf-8")
+
+    patch = tmp_path / "patch"
+    (patch / "sce_sys").mkdir(parents=True)
+    (patch / "eboot.bin").write_bytes(b"patched eboot")
+    (patch / "sce_sys" / "new.prx").write_bytes(b"brand new")
+
+    result = backport.apply_overwrite(target, patch)
+
+    assert result["replaced"] == 1 and result["added"] == 1
+    assert (target / "eboot.bin").read_bytes() == b"patched eboot"
+    assert (target / "sce_sys" / "new.prx").read_bytes() == b"brand new"
+    assert (target / "keep.txt").read_text(encoding="utf-8") == "untouched"
+
+
+def test_apply_overwrite_from_zip(tmp_path: Path) -> None:
+    target = tmp_path / "game"
+    target.mkdir()
+    (target / "eboot.bin").write_bytes(b"old")
+
+    patch = tmp_path / "patch.zip"
+    with zipfile.ZipFile(patch, "w") as bundle:
+        bundle.writestr("eboot.bin", b"new")
+        bundle.writestr("assets/level.dat", b"level")
+
+    result = backport.apply_overwrite(target, patch)
+
+    assert result["replaced"] == 1 and result["added"] == 1
+    assert (target / "eboot.bin").read_bytes() == b"new"
+    assert (target / "assets" / "level.dat").read_bytes() == b"level"
+
+
+def test_apply_overwrite_rejects_path_traversal(tmp_path: Path) -> None:
+    target = tmp_path / "game"
+    target.mkdir()
+    patch = tmp_path / "evil.zip"
+    with zipfile.ZipFile(patch, "w") as bundle:
+        bundle.writestr("../escape.bin", b"nope")
+
+    with pytest.raises(backport.BackportError, match="unsafe path"):
+        backport.apply_overwrite(target, patch)
+    assert not (tmp_path / "escape.bin").exists()
+
+
+def test_apply_overwrite_rejects_non_patch_source(tmp_path: Path) -> None:
+    target = tmp_path / "game"
+    target.mkdir()
+    plain = tmp_path / "notes.txt"
+    plain.write_text("not a patch", encoding="utf-8")
+    with pytest.raises(backport.BackportError, match="folder or a .zip"):
+        backport.apply_overwrite(target, plain)
+
+
 def test_invalid_target_and_missing_folder(tmp_path: Path) -> None:
     path = _elf(tmp_path / "x.elf")
     with pytest.raises(backport.BackportError, match="unsupported"):

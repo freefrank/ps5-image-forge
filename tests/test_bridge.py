@@ -41,6 +41,34 @@ def dump(tmp_path: Path) -> Path:
     return src
 
 
+def _patchable_eboot(path: Path, *, band: int = 10) -> Path:
+    """A minimal ELF whose SCE process-param carries an SDK band."""
+    import struct
+
+    from exfat_forge import backport
+
+    data = bytearray(0x180)
+    data[:4] = backport.ELF_MAGIC
+    data[4:7] = b"\x02\x01\x01"
+    data[7] = 9
+    struct.pack_into("<HHI", data, 0x10, 0xFE10, 0x3E, 1)
+    struct.pack_into("<Q", data, 0x20, 0x40)
+    struct.pack_into("<H", data, 0x34, 0x40)
+    struct.pack_into("<H", data, 0x36, 0x38)
+    struct.pack_into("<H", data, 0x38, 2)
+    struct.pack_into("<II6Q", data, 0x40, 1, 4, 0x100, 0, 0, 0x30, 0x30, 0x10)
+    struct.pack_into("<I", data, 0x78, backport.PT_SCE_PROCPARAM)
+    struct.pack_into("<Q", data, 0x80, 0x100)
+    struct.pack_into("<Q", data, 0x98, 0x30)
+    struct.pack_into("<I", data, 0x100, 0x30)
+    struct.pack_into("<I", data, 0x108, backport.SCE_PROCESS_PARAM_MAGIC)
+    ps5, ps4 = backport.SDK_VERSION_PAIRS[band]
+    struct.pack_into("<I", data, 0x110, ps4)
+    struct.pack_into("<I", data, 0x114, ps5)
+    path.write_bytes(data)
+    return path
+
+
 class RecordingBridge(Bridge):
     """Captures what would have been pushed into the page."""
 
@@ -248,6 +276,68 @@ def test_extract_and_inspect_image(dump: Path, tmp_path: Path) -> None:
     assert b.last("onError") is None
     assert (tmp_path / "back" / "eboot.bin").read_bytes() == \
            (dump / "eboot.bin").read_bytes()
+
+
+def test_compress_exfat_to_pfs_via_bridge(dump: Path, tmp_path: Path) -> None:
+    from exfat_forge import core
+
+    image = core.build_exfat(dump, tmp_path / "game.exfat")
+    b = RecordingBridge()
+    b.start_compress({"image": str(image), "output": str(tmp_path / "out.ffpfsc"),
+                      "level": 1})
+    b.wait()
+    assert b.last("onError") is None
+    assert b.last("onDone") is not None
+    assert (tmp_path / "out.ffpfsc").is_file()
+
+
+def test_backport_image_via_bridge(dump: Path, tmp_path: Path) -> None:
+    from exfat_forge import backport, core
+
+    _patchable_eboot(dump / "eboot.bin", band=10)
+    image = core.build_exfat(dump, tmp_path / "game.exfat")
+
+    b = RecordingBridge()
+    b.start_backport_image(str(image), 5)
+    b.wait()
+    assert b.last("onError") is None
+    result = b.last("onBackportImage")
+    assert result is not None and result[0]["patched"] == 1
+
+    check = tmp_path / "check"
+    from exfat_forge import pipeline
+    pipeline.extract_any(image, check)
+    assert backport.inspect_file(check / "eboot.bin").sdk_band == 5
+
+
+def test_overwrite_folder_and_image_via_bridge(dump: Path, tmp_path: Path) -> None:
+    from exfat_forge import core, pipeline
+
+    patch = tmp_path / "patch"
+    patch.mkdir()
+    (patch / "eboot.bin").write_bytes(b"patched by user")
+
+    # folder target
+    folder = tmp_path / "game_folder"
+    (folder / "sce_sys").mkdir(parents=True)
+    (folder / "eboot.bin").write_bytes(b"orig")
+    b = RecordingBridge()
+    b.start_overwrite(str(folder), str(patch))
+    b.wait()
+    assert b.last("onError") is None
+    assert (folder / "eboot.bin").read_bytes() == b"patched by user"
+
+    # image target
+    image = core.build_exfat(dump, tmp_path / "game.exfat")
+    b2 = RecordingBridge()
+    b2.start_overwrite(str(image), str(patch))
+    b2.wait()
+    assert b2.last("onError") is None
+    res = b2.last("onOverwrite")
+    assert res is not None and res[0]["replaced"] == 1
+    check = tmp_path / "check"
+    pipeline.extract_any(image, check)
+    assert (check / "eboot.bin").read_bytes() == b"patched by user"
 
 
 def test_scan_library(dump: Path, tmp_path: Path) -> None:

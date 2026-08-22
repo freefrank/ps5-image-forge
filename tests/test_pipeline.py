@@ -8,10 +8,37 @@ from pathlib import Path
 
 import pytest
 
-from exfat_forge import core, library, pipeline, ufs
+from exfat_forge import backport, core, library, pipeline, ufs
 from exfat_forge.settings import History, HistoryEntry, Settings
 
 _HAS_UFS = ufs.tool_available() and ufs.dotnet_status().available
+
+
+def _patchable_eboot(path: Path, *, band: int = 10) -> Path:
+    """Write a minimal ELF whose SCE process-param carries an SDK band."""
+    import struct
+
+    data = bytearray(0x180)
+    data[:4] = backport.ELF_MAGIC
+    data[4:7] = b"\x02\x01\x01"
+    data[7] = 9
+    struct.pack_into("<HHI", data, 0x10, 0xFE10, 0x3E, 1)
+    struct.pack_into("<Q", data, 0x20, 0x40)
+    struct.pack_into("<H", data, 0x34, 0x40)
+    struct.pack_into("<H", data, 0x36, 0x38)
+    struct.pack_into("<H", data, 0x38, 2)
+    struct.pack_into("<II6Q", data, 0x40,
+                     1, 4, 0x100, 0, 0, 0x30, 0x30, 0x10)
+    struct.pack_into("<I", data, 0x78, backport.PT_SCE_PROCPARAM)
+    struct.pack_into("<Q", data, 0x80, 0x100)
+    struct.pack_into("<Q", data, 0x98, 0x30)
+    struct.pack_into("<I", data, 0x100, 0x30)
+    struct.pack_into("<I", data, 0x108, backport.SCE_PROCESS_PARAM_MAGIC)
+    ps5, ps4 = backport.SDK_VERSION_PAIRS[band]
+    struct.pack_into("<I", data, 0x110, ps4)
+    struct.pack_into("<I", data, 0x114, ps5)
+    path.write_bytes(data)
+    return path
 
 
 @pytest.fixture()
@@ -178,3 +205,101 @@ def test_pipeline_ffpkg_and_pfs_via_ffpkg(dump: Path, tmp_path: Path) -> None:
 def test_bad_format_rejected(dump: Path, tmp_path: Path) -> None:
     with pytest.raises(ValueError):
         pipeline.JobSpec(source=dump, output_dir=tmp_path, fmt="iso")
+
+
+# ── image-internal editing: backport + patch overwrite ────────────
+
+def test_rebuild_image_roundtrip_exfat(dump: Path, tmp_path: Path) -> None:
+    image = core.build_exfat(dump, tmp_path / "a.exfat")
+    work = tmp_path / "work"
+    pipeline.extract_any(image, work)
+    (work / "eboot.bin").write_bytes(b"changed after extract")
+
+    pipeline.rebuild_image(work, image)
+    back = tmp_path / "back"
+    pipeline.extract_any(image, back)
+    assert (back / "eboot.bin").read_bytes() == b"changed after extract"
+
+
+def test_backport_image_patches_eboot_in_place_exfat(
+        dump: Path, tmp_path: Path) -> None:
+    _patchable_eboot(dump / "eboot.bin", band=10)
+    image = core.build_exfat(dump, tmp_path / "game.exfat")
+    original_eboot = (dump / "eboot.bin").read_bytes()
+
+    result = pipeline.backport_image(image, 5)
+    assert result["patched"] == 1 and result["failed"] == 0
+    # Backup is a small sidecar zip of only the changed files' originals,
+    # never a copy of the whole (potentially 100 GB+) image.
+    backup = Path(result["backup_path"])
+    assert backup.name == "game.bak.zip"
+    import zipfile
+    with zipfile.ZipFile(backup) as bundle:
+        assert bundle.namelist() == ["eboot.bin"]
+        assert bundle.read("eboot.bin") == original_eboot
+
+    check = tmp_path / "check"
+    pipeline.extract_any(image, check)
+    assert backport.inspect_file(check / "eboot.bin").sdk_band == 5
+
+    # Overlaying the backup restores the original executable inside the image.
+    pipeline.overwrite_image(image, backup, backup=False)
+    restored = tmp_path / "restored"
+    pipeline.extract_any(image, restored, overwrite=True)
+    assert (restored / "eboot.bin").read_bytes() == original_eboot
+
+
+def test_backport_image_can_skip_backup(dump: Path, tmp_path: Path) -> None:
+    _patchable_eboot(dump / "eboot.bin", band=10)
+    image = core.build_exfat(dump, tmp_path / "game.exfat")
+    result = pipeline.backport_image(image, 7, backup=False)
+    assert result["patched"] == 1
+    assert "backup_path" not in result
+    assert not (tmp_path / "game.bak.zip").exists()
+
+
+def test_overwrite_image_replaces_and_adds_files_exfat(
+        dump: Path, tmp_path: Path) -> None:
+    image = core.build_exfat(dump, tmp_path / "game.exfat")
+
+    patch = tmp_path / "patch"
+    patch.mkdir()
+    (patch / "eboot.bin").write_bytes(b"overwritten eboot payload")
+    (patch / "mods").mkdir()
+    (patch / "mods" / "extra.prx").write_bytes(b"a whole new module")
+
+    result = pipeline.overwrite_image(image, patch)
+    assert result["replaced"] == 1 and result["added"] == 1
+
+    check = tmp_path / "check"
+    pipeline.extract_any(image, check)
+    assert (check / "eboot.bin").read_bytes() == b"overwritten eboot payload"
+    assert (check / "mods" / "extra.prx").read_bytes() == b"a whole new module"
+    assert (check / "data" / "f0.dat").read_bytes() == \
+        (dump / "data" / "f0.dat").read_bytes()
+
+
+def test_backport_image_in_place_pfs(dump: Path, tmp_path: Path) -> None:
+    _patchable_eboot(dump / "eboot.bin", band=10)
+    res = pipeline.run_job(pipeline.JobSpec(
+        source=dump, output_dir=tmp_path / "out", fmt="pfs", level=1))
+    image = res.output
+
+    result = pipeline.backport_image(image, 5, backup=False, level=1)
+    assert result["patched"] == 1 and result["failed"] == 0
+    assert image.suffix == ".ffpfsc"
+
+    # A PFS unwraps to its inner exfat, which then holds the game tree.
+    outer = tmp_path / "outer"
+    pipeline.extract_any(image, outer, overwrite=True)
+    inner = next(p for p in outer.iterdir() if p.suffix.lower() == ".exfat")
+    check = tmp_path / "check"
+    pipeline.extract_any(inner, check, overwrite=True)
+    assert backport.inspect_file(check / "eboot.bin").sdk_band == 5
+
+
+def test_edit_image_rejects_unsupported_source(tmp_path: Path) -> None:
+    plain = tmp_path / "notes.txt"
+    plain.write_text("x", encoding="utf-8")
+    with pytest.raises(backport.BackportError):
+        pipeline.backport_image(plain, 5)

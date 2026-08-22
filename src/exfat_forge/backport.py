@@ -455,6 +455,125 @@ def backup_inventory(folder: Path) -> list[dict]:
     return inventory
 
 
+def _validated_rel(raw: str) -> str:
+    """Normalize a patch member path and reject anything that escapes the root.
+
+    ZIP entries and folder walks are untrusted layout: an absolute path, a
+    ``..`` component, or a drive letter must never write outside the target.
+    """
+    rel = raw.replace("\\", "/")
+    parts: list[str] = []
+    for part in rel.split("/"):
+        if part in ("", "."):
+            continue
+        if part == ".." or (len(part) >= 2 and part[1] == ":"):
+            raise BackportError(f"unsafe path in patch source: {raw!r}")
+        parts.append(part)
+    if not parts:
+        raise BackportError(f"patch source has an empty member path: {raw!r}")
+    return "/".join(parts)
+
+
+def _emit_file(dest: Path, produce) -> bool:
+    """Atomically write ``dest`` via a temp sibling; return whether it existed."""
+    existed = dest.is_file()
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    fd, name = tempfile.mkstemp(prefix=dest.name + ".", suffix=".tmp",
+                               dir=str(dest.parent))
+    temp_path = Path(name)
+    try:
+        with os.fdopen(fd, "wb") as out:
+            produce(out)
+            out.flush()
+            os.fsync(out.fileno())
+        os.replace(temp_path, dest)
+    finally:
+        temp_path.unlink(missing_ok=True)
+    return existed
+
+
+def patch_member_paths(patch: Path) -> list[str]:
+    """List the validated relative paths a folder/ZIP patch would write."""
+    patch = Path(patch)
+    if patch.is_dir():
+        return [_validated_rel(str(p.relative_to(patch)))
+                for p in sorted((q for q in patch.rglob("*") if q.is_file()),
+                                key=lambda q: str(q).lower())]
+    if zipfile.is_zipfile(patch):
+        try:
+            with zipfile.ZipFile(patch) as bundle:
+                return [_validated_rel(info.filename)
+                        for info in bundle.infolist() if not info.is_dir()]
+        except zipfile.BadZipFile as exc:
+            raise BackportError(f"invalid patch ZIP: {exc}") from exc
+    raise BackportError("patch source must be a folder or a .zip file")
+
+
+def apply_overwrite(target_dir: Path, patch: Path, *,
+                    progress=None) -> dict:
+    """Overlay a user-supplied ZIP or folder onto ``target_dir``.
+
+    Every file in ``patch`` is written to the same relative path inside
+    ``target_dir`` — replacing an existing file or adding a new one — exactly
+    like dropping a patch/overwrite over an extracted game.  Directory layout
+    is preserved and each file lands atomically.  Nothing in ``target_dir`` is
+    deleted; unmatched originals are left untouched.
+    """
+    target_dir = Path(target_dir)
+    if not target_dir.is_dir():
+        raise BackportError("overwrite target folder does not exist")
+    patch = Path(patch)
+    items: list[dict] = []
+    added = replaced = 0
+
+    def record(rel: str, existed: bool) -> None:
+        nonlocal added, replaced
+        if existed:
+            replaced += 1
+        else:
+            added += 1
+        items.append({"path": rel, "result": "replaced" if existed else "added"})
+        if progress is not None:
+            from .core import ProgressEvent
+            progress(ProgressEvent("overwrite", added + replaced, 0, rel))
+
+    if patch.is_dir():
+        members = sorted((p for p in patch.rglob("*") if p.is_file()),
+                         key=lambda p: str(p).lower())
+        if not members:
+            raise BackportError("patch folder contains no files")
+        for member in members:
+            rel = _validated_rel(str(member.relative_to(patch)))
+
+            def produce(out, src=member) -> None:
+                with src.open("rb") as handle:
+                    shutil.copyfileobj(handle, out, 1024 * 1024)
+            existed = _emit_file(target_dir / rel, produce)
+            record(rel, existed)
+    elif zipfile.is_zipfile(patch):
+        try:
+            with zipfile.ZipFile(patch) as bundle:
+                files = [i for i in bundle.infolist() if not i.is_dir()]
+                if not files:
+                    raise BackportError("patch ZIP contains no files")
+                for info in files:
+                    rel = _validated_rel(info.filename)
+
+                    def produce(out, info=info, bundle=bundle) -> None:
+                        with bundle.open(info) as src:
+                            shutil.copyfileobj(src, out, 1024 * 1024)
+                    existed = _emit_file(target_dir / rel, produce)
+                    record(rel, existed)
+        except zipfile.BadZipFile as exc:
+            raise BackportError(f"invalid patch ZIP: {exc}") from exc
+    else:
+        raise BackportError("patch source must be a folder or a .zip file")
+
+    return {"target": str(target_dir), "source": str(patch),
+            "written": added + replaced, "added": added, "replaced": replaced,
+            "items": items}
+
+
 def restore_file(target: Path, backup_path: Path) -> dict:
     """Atomically restore one target while preserving its current state."""
     target, backup_path = Path(target), Path(backup_path)

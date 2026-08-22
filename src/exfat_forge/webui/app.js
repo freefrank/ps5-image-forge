@@ -363,12 +363,23 @@ function jobEnd(kind, msg) {
   $("btn-run").disabled = false; $("btn-abort").disabled = true;
   $("ex-run").disabled = false; $("ex-abort").disabled = true;
   $("ftp-upload").disabled = false; $("ftp-abort").disabled = true;
+  $("bp-apply").disabled = false; $("bp-overwrite").disabled = false;
+  $("bp-restore").disabled = false;
   const box = activeLogBox();
   if (msg) log(box, msg, kind === "done" ? "ok" : kind === "error" ? "err" : "");
 }
 function activeLogBox() {
   const page = document.querySelector(".page.on").id;
-  return page === "page-extract" ? "ex-log" : page === "page-ftp" ? "ftp-log" : "log";
+  if (page === "page-extract") return "ex-log";
+  if (page === "page-ftp") return "ftp-log";
+  if (page === "page-backport") return "bp-log";
+  return "log";
+}
+
+const IMAGE_EXTS = [".exfat", ".ffpkg", ".ffpfsc", ".ffpfs"];
+function isImagePath(p) {
+  p = (p || "").trim().toLowerCase();
+  return IMAGE_EXTS.some(ext => p.endsWith(ext));
 }
 
 window.forge = {
@@ -377,6 +388,18 @@ window.forge = {
   onDone: m => jobEnd("done", m),
   onError: m => jobEnd("error", t("err.prefix") + m),
   onCancelled: () => jobEnd("cancelled", t("phase.cancelled")),
+  onBackportImage: r => {
+    const msg = t("bp.done", r);
+    log("bp-log", msg, r.failed ? "err" : "ok");
+    if (r.backup_path) log("bp-log", t("bp.backup_created", { path: r.backup_path }), "ok");
+    $("bp-summary").textContent = msg;
+  },
+  onOverwrite: r => {
+    const msg = t("bp.ov.done", r);
+    log("bp-log", msg, "ok");
+    if (r.backup_path) log("bp-log", t("bp.backup_created", { path: r.backup_path }), "ok");
+    $("bp-summary").textContent = msg;
+  },
   onKlog: lines => {
     // arrives as a batch; append in one pass so a busy console cannot
     // reflow the box once per line
@@ -450,6 +473,23 @@ async function pickInto(inputId, kind, patterns) {
   if (p) { $(inputId).value = p; if (inputId === "source") describeSource(p); }
 }
 $("pick-source").onclick = () => pickInto("source", "dir");
+$("pick-source-image").onclick = async () => {
+  const b = bridge();
+  if (!b) { log(activeLogBox(), "demo: dialogs unavailable"); return; }
+  const p = await b.pick_file(
+    ["Game images (*.exfat;*.ffpkg;*.ffpfsc)", "All files (*.*)"]);
+  if (!p) return;
+  $("source").value = p;
+  if (isImagePath(p)) {
+    // An existing image can only be repacked as compressed PFS.
+    const pfs = document.querySelector('#page-build .mode[data-mode="pfs"]');
+    if (pfs && !pfs.classList.contains("on")) pfs.click();
+    if (!$("output").value) $("output").value = p.replace(/[\\\/][^\\\/]*$/, "");
+    $("source-info").textContent = t("msg.compress_hint");
+  } else {
+    describeSource(p);
+  }
+};
 $("pick-output").onclick = () => pickInto("output", "dir");
 $("ex-pick-image").onclick = () => pickInto("ex-image", "file");
 $("ex-pick-dest").onclick = () => pickInto("ex-dest", "dir");
@@ -1143,11 +1183,37 @@ $("bp-pick").onclick = async () => {
   const folder = await b.pick_folder();
   if (folder) { $("bp-dir").value = folder; await scanBackport(); }
 };
+$("bp-pick-image").onclick = async () => {
+  const b = bridge(); if (!b) return;
+  const image = await b.pick_file(
+    ["Game images (*.exfat;*.ffpkg;*.ffpfsc)", "All files (*.*)"]);
+  if (image) { $("bp-dir").value = image; await scanBackport(); }
+};
+$("bp-patch-pick-file").onclick = () =>
+  pickInto("bp-patch", "file", ["Patch archive (*.zip)", "All files (*.*)"]);
+$("bp-patch-pick-dir").onclick = async () => {
+  const b = bridge(); if (!b) return;
+  const folder = await b.pick_folder();
+  if (folder) $("bp-patch").value = folder;
+};
 $("bp-scan").onclick = () => scanBackport();
 $("bp-apply").onclick = async () => {
-  const folder = $("bp-dir").value.trim();
-  if (!folder) { log("bp-log", t("bp.no_folder"), "err"); return; }
+  const source = $("bp-dir").value.trim();
+  if (!source) { log("bp-log", t("bp.no_folder"), "err"); return; }
   const target = +$("bp-target").value;
+
+  if (isImagePath(source)) {
+    if (!await confirmInApp(t("bp.confirm_image", { target }))) return;
+    const b = bridge();
+    if (!b) { log("bp-log", "demo: image backport " + target + ".xx", "ok"); return; }
+    startJob("bp-log");
+    $("bp-apply").disabled = true; $("bp-overwrite").disabled = true;
+    $("bp-restore").disabled = true;
+    b.start_backport_image(source, target, true);
+    return;
+  }
+
+  const folder = source;
   if (!await confirmInApp(t("bp.confirm", { target }))) return;
   const b = bridge();
   if (!b) { log("bp-log", "demo: SDK downgrade " + target + ".xx", "ok"); return; }
@@ -1168,6 +1234,22 @@ $("bp-apply").onclick = async () => {
     log("bp-log", t("bp.backup_created", { path: item.backup_path }), "ok"));
   $("bp-summary").textContent = msg;
   $("bp-apply").disabled = false;
+};
+
+$("bp-overwrite").onclick = async () => {
+  const target = $("bp-dir").value.trim();
+  const patch = $("bp-patch").value.trim();
+  if (!target) { log("bp-log", t("bp.no_folder"), "err"); return; }
+  if (!patch) { log("bp-log", t("bp.ov.no_patch"), "err"); return; }
+  if (!await confirmInApp(t("bp.ov.confirm"), {
+    title: t("bp.ov.title"), note: t("bp.ov.note")
+  })) return;
+  const b = bridge();
+  if (!b) { log("bp-log", "demo: overwrite " + patch, "ok"); return; }
+  startJob("bp-log");
+  $("bp-apply").disabled = true; $("bp-overwrite").disabled = true;
+  $("bp-restore").disabled = true;
+  b.start_overwrite(target, patch, true);
 };
 
 $("bp-restore").onclick = async () => {
@@ -1200,6 +1282,17 @@ $("bp-restore").onclick = async () => {
 async function scanBackport() {
   const folder = $("bp-dir").value.trim();
   if (!folder) { log("bp-log", t("bp.no_folder"), "err"); return; }
+  if (isImagePath(folder)) {
+    // Scanning reads a folder's files; an image is edited in place instead,
+    // so just arm the actions and skip the (folder-only) file listing.
+    bpItems = []; bpBackups = [];
+    renderBackport();
+    updateBackportBackups(0);
+    $("bp-summary").textContent = t("bp.image_selected");
+    $("bp-apply").disabled = false; $("bp-overwrite").disabled = false;
+    log("bp-log", t("bp.image_selected"), "");
+    return;
+  }
   const b = bridge();
   if (!b) {
     bpItems = [{ path: "D:\\game\\eboot.bin", status: "patchable",

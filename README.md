@@ -63,12 +63,21 @@ exfat-forge build E:\PPSA21564-app0 -o D:\PS5
 exfat-forge build E:\dump -o D:\PS5 -f pfs --level 6
 exfat-forge build E:\dump -o D:\PS5 -f ffpkg
 exfat-forge build E:\dump -o D:\PS5 -f pfs --via ffpkg --keep-intermediate
+exfat-forge compress D:\PS5\PPSA21564.exfat -o D:\PS5\PPSA21564.ffpfsc --level 9
+exfat-forge backport D:\PS5\PPSA21564.exfat --target 5
+exfat-forge backport E:\PPSA21564-app0 --overwrite-from D:\patch.zip
 exfat-forge verify D:\PS5\PPSA21564.exfat --source E:\PPSA21564-app0
 exfat-forge extract D:\PS5\PPSA21564.ffpfsc D:\unpacked
 exfat-forge list D:\PS5\PPSA21564.exfat
 exfat-forge history
 exfat-forge catalog
 ```
+
+`compress` 把已有 exFAT 镜像压缩为 PFS（`.ffpfsc`）。`backport` 既能作用于
+已解包的游戏文件夹，也能直接作用于 `.exfat`/`.ffpfsc`/`.ffpkg` 镜像：镜像会被
+解包 → 修改 → 重新打包（`--target` 做 SDK 降级；`--overwrite-from` 用一个
+zip/文件夹按相对路径覆盖文件）。由于 ROM 可能上百 GB，备份只保存**被改动文件**
+的原始版本到镜像旁的 `NAME.bak.zip`，用它作为一次覆盖即可还原。
 
 默认输出文件名来自游戏元数据，格式为
 `PPSA_TITLE_VERSION.ext`，例如
@@ -84,7 +93,8 @@ CLI 消息跟随系统语言，`EXFAT_FORGE_LANG=en|zh` 可覆盖。
 pytest tests/
 ```
 
-127 个测试覆盖：镜像构建/校验/腐蚀检测/逐字节解包往返、三格式流水线、
+140 个测试覆盖：镜像构建/校验/腐蚀检测/逐字节解包往返、三格式流水线、
+exFAT→PFS 压缩、镜像内 Backport 与补丁覆盖（解包→改文件→重打包，含仅备份改动文件）、
 设置与历史持久化（含损坏文件与旧版本字段）、库扫描、payload ELF 解析
 （含真实 PS5 payload）、PS5 协议与端口扫描（本地 socket 模拟真实线路行为）、payload 目录与下载、
 Backport 扫描/降级/备份与签名文件保护，以及 GUI 的完整后端接口（无窗口驱动）。

@@ -271,6 +271,25 @@ class Bridge:
         self._js("onDone", f"{result.output.name} · {gb:.2f} GB · "
                            f"{mins}m {secs:02d}s")
 
+    # ── compress (exFAT → PFS) ────────────────────────────────────
+
+    def start_compress(self, opts: dict) -> None:
+        self._spawn(self._run_compress, opts)
+
+    def _run_compress(self, opts: dict) -> None:
+        image = Path(str(opts.get("image", "")).strip('" '))
+        out = str(opts.get("output", "")).strip('" ')
+        output = Path(out) if out else image.with_suffix(".ffpfsc")
+        result = core.pack_pfs(
+            image, output,
+            compress=bool(opts.get("compress", True)),
+            compression_level=max(1, min(9, int(opts.get("level", 9)))),
+            threads=(int(opts["threads"]) or None) if opts.get("threads") else None,
+            progress=self._progress)
+        gb = result.stat().st_size / 2**30
+        self._log(i18n.t("build.ok", path=result.name, size=f"{gb:.2f} GB"), "ok")
+        self._js("onDone", f"{result.name} · {gb:.2f} GB")
+
     # ── extract ───────────────────────────────────────────────────
 
     def start_extract(self, image: str, dest: str, overwrite: bool = False) -> None:
@@ -348,6 +367,46 @@ class Bridge:
         return {"ok": result["failed"] == 0, **result,
                 "backups": backups,
                 "restorable": sum(bool(item["restorable"]) for item in backups)}
+
+    def start_backport_image(self, image: str, target: int,
+                             backup: bool = True) -> None:
+        """SDK-downgrade executables inside an image (slow: unpack→edit→repack)."""
+        self._spawn(self._run_backport_image, image, int(target), bool(backup))
+
+    def _run_backport_image(self, image: str, target: int,
+                            backup: bool) -> None:
+        result = pipeline.backport_image(
+            Path(str(image).strip('" ')), target, backup=backup,
+            progress=self._progress, cancel=self._cancel)
+        self._js("onBackportImage", result)
+        note = (f"{result['patched']} patched, {result['already']} already, "
+                f"{result['skipped']} skipped, {result['failed']} failed")
+        self._log(note, "ok" if result["failed"] == 0 else "warn")
+        self._js("onDone", note)
+
+    def start_overwrite(self, target: str, patch: str,
+                        backup: bool = True) -> None:
+        """Apply a user ZIP/folder patch over a folder or an image."""
+        self._spawn(self._run_overwrite, target, patch, bool(backup))
+
+    def _run_overwrite(self, target: str, patch: str, backup: bool) -> None:
+        dest = Path(str(target).strip('" '))
+        patch_path = Path(str(patch).strip('" '))
+        if dest.is_file() and dest.suffix.lower() in pipeline.IMAGE_SUFFIXES:
+            result = pipeline.overwrite_image(
+                dest, patch_path, backup=backup,
+                progress=self._progress, cancel=self._cancel)
+        elif dest.is_dir():
+            result = backport.apply_overwrite(dest, patch_path,
+                                              progress=self._progress)
+        else:
+            raise backport.BackportError(
+                "overwrite target must be a folder or a known image")
+        self._js("onOverwrite", result)
+        note = (f"{result['written']} written "
+                f"({result['replaced']} replaced, {result['added']} added)")
+        self._log(note, "ok")
+        self._js("onDone", note)
 
     def backport_restore(self, folder: str) -> dict:
         source = (folder or "").strip('" ')
