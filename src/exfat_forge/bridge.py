@@ -258,6 +258,7 @@ class Bridge:
             ffpkg_block=int(opts.get("ffpkg_block", 65536)),
             ffpkg_frag=int(opts.get("ffpkg_frag", 65536)),
             ffpkg_minfree=int(opts.get("ffpkg_minfree", 0)),
+            work_dir=self._settings.work_dir,
         )
         if source.is_dir() and not (source / "eboot.bin").is_file():
             self._log(i18n.t("log.no_eboot"), "warn")
@@ -285,6 +286,7 @@ class Bridge:
             compress=bool(opts.get("compress", True)),
             compression_level=max(1, min(9, int(opts.get("level", 9)))),
             threads=(int(opts["threads"]) or None) if opts.get("threads") else None,
+            temp_dir=Path(self._settings.work_dir) if self._settings.work_dir else None,
             progress=self._progress)
         gb = result.stat().st_size / 2**30
         self._log(i18n.t("build.ok", path=result.name, size=f"{gb:.2f} GB"), "ok")
@@ -377,6 +379,7 @@ class Bridge:
                             backup: bool) -> None:
         result = pipeline.backport_image(
             Path(str(image).strip('" ')), target, backup=backup,
+            work_dir=self._settings.work_dir or None,
             progress=self._progress, cancel=self._cancel)
         self._js("onBackportImage", result)
         note = (f"{result['patched']} patched, {result['already']} already, "
@@ -395,6 +398,7 @@ class Bridge:
         if dest.is_file() and dest.suffix.lower() in pipeline.IMAGE_SUFFIXES:
             result = pipeline.overwrite_image(
                 dest, patch_path, backup=backup,
+                work_dir=self._settings.work_dir or None,
                 progress=self._progress, cancel=self._cancel)
         elif dest.is_dir():
             result = backport.apply_overwrite(dest, patch_path,

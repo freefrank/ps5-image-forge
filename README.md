@@ -79,6 +79,9 @@ exfat-forge catalog
 zip/文件夹按相对路径覆盖文件）。由于 ROM 可能上百 GB，备份只保存**被改动文件**
 的原始版本到镜像旁的 `NAME.bak.zip`，用它作为一次覆盖即可还原。
 
+重 IO 的临时/中转数据（压缩、镜像解包/重打包）默认落在输出旁边；库通常在 HDD，
+可用设置里的**工作目录**（或 CLI `--work-dir`）把它指到 SSD，只有最终镜像写回 HDD。
+
 默认输出文件名来自游戏元数据，格式为
 `PPSA_TITLE_VERSION.ext`，例如
 `PPSA21564_ASTRO_BOT_01.000.000.ffpfsc`。标题中的 Windows 非法字符会
@@ -93,7 +96,7 @@ CLI 消息跟随系统语言，`EXFAT_FORGE_LANG=en|zh` 可覆盖。
 pytest tests/
 ```
 
-140 个测试覆盖：镜像构建/校验/腐蚀检测/逐字节解包往返、三格式流水线、
+142 个测试覆盖：镜像构建/校验/腐蚀检测/逐字节解包往返、三格式流水线、
 exFAT→PFS 压缩、镜像内 Backport 与补丁覆盖（解包→改文件→重打包，含仅备份改动文件）、
 设置与历史持久化（含损坏文件与旧版本字段）、库扫描、payload ELF 解析
 （含真实 PS5 payload）、PS5 协议与端口扫描（本地 socket 模拟真实线路行为）、payload 目录与下载、

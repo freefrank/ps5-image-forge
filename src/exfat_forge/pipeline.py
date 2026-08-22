@@ -31,6 +31,18 @@ from .settings import History, HistoryEntry
 
 IMAGE_SUFFIXES = (".exfat", ".ffpkg", ".ffpfsc", ".ffpfs")
 
+
+def _scratch_base(work_dir: Path | None, fallback: Path) -> Path:
+    """Resolve where to stage IO-heavy scratch, creating it if needed.
+
+    ``work_dir`` (the user's optional SSD scratch) is preferred; otherwise
+    scratch sits beside the target (``fallback``), which for a library on a
+    slow HDD is exactly what a work dir is meant to avoid.
+    """
+    base = Path(work_dir) if work_dir else Path(fallback)
+    base.mkdir(parents=True, exist_ok=True)
+    return base
+
 FORMATS = ("exfat", "ffpkg", "pfs")
 EXT_BY_FORMAT = {"exfat": ".exfat", "ffpkg": ".ffpkg", "pfs": ".ffpfsc"}
 
@@ -55,6 +67,8 @@ class JobSpec:
     ffpkg_block: int = 65536
     ffpkg_frag: int = 65536
     ffpkg_minfree: int = 0
+    # scratch (empty = beside the output); point at an SSD for a slow library
+    work_dir: str = ""
 
     def __post_init__(self) -> None:
         if self.fmt not in FORMATS:
@@ -166,8 +180,14 @@ def _from_dump(spec: JobSpec, final: Path, *,
         return image, verified
 
     # fmt == "pfs": build the chosen intermediate, then pack it
+    wd = Path(spec.work_dir) if spec.work_dir else None
     inter_ext = EXT_BY_FORMAT[spec.intermediate]
-    inter_path = final.with_suffix(inter_ext)
+    # A kept intermediate belongs beside the output; a throwaway one can live
+    # on the scratch (SSD) volume so the HDD only takes the final .ffpfsc.
+    if wd and not spec.keep_intermediate:
+        inter_path = _scratch_base(wd, final.parent) / (final.stem + inter_ext)
+    else:
+        inter_path = final.with_suffix(inter_ext)
     if spec.intermediate == "exfat":
         inter = core.build_exfat(spec.source, inter_path,
                                  cluster_size=spec.cluster_size,
@@ -190,7 +210,7 @@ def _from_dump(spec: JobSpec, final: Path, *,
         cancel.raise_if_cancelled()
     out = core.pack_pfs(inter, final, compress=spec.compress,
                         compression_level=spec.level, threads=spec.threads,
-                        progress=progress)
+                        temp_dir=wd, progress=progress)
     if not spec.keep_intermediate:
         inter.unlink(missing_ok=True)
     return out, verified
@@ -205,6 +225,7 @@ def _from_image(spec: JobSpec, final: Path, *,
             "extract it to a directory first for other formats")
     return core.pack_pfs(spec.source, final, compress=spec.compress,
                          compression_level=spec.level, threads=spec.threads,
+                         temp_dir=Path(spec.work_dir) if spec.work_dir else None,
                          progress=progress)
 
 
@@ -214,12 +235,16 @@ def rebuild_image(source_dir: Path, target_image: Path, *,
                   cluster_size: int | None = None,
                   compress: bool = True, level: int = 9,
                   threads: int | None = None,
+                  work_dir: Path | None = None,
                   ffpkg_block: int = 65536, ffpkg_frag: int = 65536,
                   ffpkg_minfree: int = 0) -> Path:
     """Rebuild ``target_image`` from ``source_dir`` in the image's own format.
 
-    Builds beside the target (``*.rebuild.<ext>``) and atomically replaces it
-    only on success, so a failed rebuild leaves the original image untouched.
+    The final image is built beside the target (``*.rebuild.<ext>``) — it must
+    share the target's volume for the atomic replace — and only on success does
+    it take the target's place, so a failed rebuild leaves the original intact.
+    ``work_dir`` moves the large intermediate exfat and MkPFS spool off that
+    volume (e.g. onto an SSD) when rebuilding a PFS.
     """
     target_image = Path(target_image)
     ext = target_image.suffix.lower()
@@ -235,7 +260,8 @@ def rebuild_image(source_dir: Path, target_image: Path, *,
                             fragment_size=ffpkg_frag, min_free=ffpkg_minfree,
                             progress=progress)
         elif ext in (".ffpfsc", ".ffpfs"):
-            inter = target_image.with_name(target_image.stem + ".rebuild.exfat")
+            inter_base = _scratch_base(work_dir, target_image.parent)
+            inter = inter_base / (target_image.stem + ".rebuild.exfat")
             inter.unlink(missing_ok=True)
             try:
                 core.build_exfat(source_dir, inter, cluster_size=cluster_size,
@@ -244,7 +270,7 @@ def rebuild_image(source_dir: Path, target_image: Path, *,
                     cancel.raise_if_cancelled()
                 core.pack_pfs(inter, partial, compress=compress,
                               compression_level=level, threads=threads,
-                              progress=progress)
+                              temp_dir=work_dir, progress=progress)
             finally:
                 inter.unlink(missing_ok=True)
         else:
@@ -315,10 +341,11 @@ def _write_change_backup(image: Path, staging: Path, tree: Path,
 
 
 def _edit_tree(image: Path, tree: Path, mutate, affected_rels, *,
-               backup: bool) -> dict:
+               backup: bool, work_dir: Path | None = None) -> dict:
     """Snapshot affected originals, run ``mutate``, and back up what changed."""
-    staging = Path(tempfile.mkdtemp(prefix="exfat_forge_bak_",
-                                    dir=str(image.parent)))
+    staging = Path(tempfile.mkdtemp(
+        prefix="exfat_forge_bak_",
+        dir=str(_scratch_base(work_dir, image.parent))))
     try:
         snapped = list(affected_rels(tree)) if backup else []
         _snapshot_originals(tree, snapped, staging)
@@ -337,7 +364,8 @@ def _edit_image_in_place(image: Path, mutate, affected_rels, *,
                          progress: ProgressFn | None,
                          cancel: CancelToken | None,
                          compress: bool = True, level: int = 9,
-                         threads: int | None = None) -> tuple[dict, Path]:
+                         threads: int | None = None,
+                         work_dir: Path | None = None) -> tuple[dict, Path]:
     """Extract ``image``, run ``mutate`` on the game tree, and rebuild in place.
 
     ``mutate(tree_dir)`` edits the game files and returns an auditable result
@@ -345,6 +373,9 @@ def _edit_image_in_place(image: Path, mutate, affected_rels, *,
     touch, so only their pre-change bytes are backed up (never the whole
     image). exfat/pfs/ffpkg are compressed or read-only containers, so the
     only safe way to change files inside them is unpack → edit → repack.
+
+    The multi-GB extraction happens in ``work_dir`` when given (e.g. an SSD),
+    so a library on a slow HDD only has to write back the final image.
 
     A ``.ffpfsc``/``.ffpfs`` wraps a single exfat image rather than a file
     tree, so it is unwrapped one extra layer: the inner exfat is edited, then
@@ -356,10 +387,11 @@ def _edit_image_in_place(image: Path, mutate, affected_rels, *,
     ext = image.suffix.lower()
     if ext not in IMAGE_SUFFIXES:
         raise backport.BackportError(f"unsupported image: {image.suffix}")
+    scratch = _scratch_base(work_dir, image.parent)
 
     if ext in (".ffpfsc", ".ffpfs"):
         work = Path(tempfile.mkdtemp(prefix="exfat_forge_pfs_",
-                                     dir=str(image.parent)))
+                                     dir=str(scratch)))
         try:
             extract_any(image, work, progress=progress, cancel=cancel,
                         overwrite=True)
@@ -369,16 +401,17 @@ def _edit_image_in_place(image: Path, mutate, affected_rels, *,
                 raise backport.BackportError(
                     "unexpected PFS payload (not a single exfat image)")
             tree = Path(tempfile.mkdtemp(prefix="exfat_forge_tree_",
-                                         dir=str(image.parent)))
+                                         dir=str(scratch)))
             try:
                 extract_any(inners[0], tree, progress=progress, cancel=cancel,
                             overwrite=True)
                 # Snapshot/backup keys off the outer PFS image's name.
                 result = _edit_tree(image, tree, mutate, affected_rels,
-                                    backup=backup)
+                                    backup=backup, work_dir=work_dir)
                 if cancel:
                     cancel.raise_if_cancelled()
-                rebuild_image(tree, inners[0], progress=progress, cancel=cancel)
+                rebuild_image(tree, inners[0], progress=progress, cancel=cancel,
+                              work_dir=work_dir)
             finally:
                 shutil.rmtree(tree, ignore_errors=True)
             partial = image.with_name(image.stem + ".rebuild" + image.suffix)
@@ -386,7 +419,7 @@ def _edit_image_in_place(image: Path, mutate, affected_rels, *,
             try:
                 core.pack_pfs(inners[0], partial, compress=compress,
                               compression_level=level, threads=threads,
-                              progress=progress)
+                              temp_dir=work_dir, progress=progress)
                 os.replace(partial, image)
             except BaseException:
                 partial.unlink(missing_ok=True)
@@ -396,15 +429,17 @@ def _edit_image_in_place(image: Path, mutate, affected_rels, *,
         return result, image
 
     tree = Path(tempfile.mkdtemp(prefix="exfat_forge_edit_",
-                                 dir=str(image.parent)))
+                                 dir=str(scratch)))
     try:
         extract_any(image, tree, progress=progress, cancel=cancel,
                     overwrite=True)
-        result = _edit_tree(image, tree, mutate, affected_rels, backup=backup)
+        result = _edit_tree(image, tree, mutate, affected_rels, backup=backup,
+                            work_dir=work_dir)
         if cancel:
             cancel.raise_if_cancelled()
         rebuild_image(tree, image, progress=progress, cancel=cancel,
-                      compress=compress, level=level, threads=threads)
+                      compress=compress, level=level, threads=threads,
+                      work_dir=work_dir)
     finally:
         shutil.rmtree(tree, ignore_errors=True)
     return result, image
@@ -419,14 +454,16 @@ def backport_image(image: Path, target: int, *,
                    progress: ProgressFn | None = None,
                    cancel: CancelToken | None = None,
                    compress: bool = True, level: int = 9,
-                   threads: int | None = None) -> dict:
+                   threads: int | None = None,
+                   work_dir: Path | None = None) -> dict:
     """SDK-downgrade every eligible executable inside an image, in place."""
     def mutate(tree: Path) -> dict:
         return backport.patch_folder(tree, int(target), backup=False)
 
     result, rebuilt = _edit_image_in_place(
         image, mutate, _candidate_rels, backup=backup, progress=progress,
-        cancel=cancel, compress=compress, level=level, threads=threads)
+        cancel=cancel, compress=compress, level=level, threads=threads,
+        work_dir=work_dir)
     return {**result, "image": str(rebuilt)}
 
 
@@ -435,7 +472,8 @@ def overwrite_image(image: Path, patch: Path, *,
                     progress: ProgressFn | None = None,
                     cancel: CancelToken | None = None,
                     compress: bool = True, level: int = 9,
-                    threads: int | None = None) -> dict:
+                    threads: int | None = None,
+                    work_dir: Path | None = None) -> dict:
     """Overlay a user ZIP/folder onto the files inside an image, in place."""
     patch = Path(patch)
     members = backport.patch_member_paths(patch)   # validates up front
@@ -445,7 +483,8 @@ def overwrite_image(image: Path, patch: Path, *,
 
     result, rebuilt = _edit_image_in_place(
         image, mutate, lambda _tree: members, backup=backup, progress=progress,
-        cancel=cancel, compress=compress, level=level, threads=threads)
+        cancel=cancel, compress=compress, level=level, threads=threads,
+        work_dir=work_dir)
     return {**result, "image": str(rebuilt)}
 
 

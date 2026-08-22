@@ -43,6 +43,9 @@ class Settings:
     source_dir: str = ""
     output_dir: str = ""
     library_dirs: list[str] = field(default_factory=list)
+    # scratch space for IO-heavy work (extract/repack/compress). Empty = beside
+    # the target. Point it at an SSD when the library lives on a slow HDD.
+    work_dir: str = ""
 
     # ui
     lang: str = ""            # "" = follow system

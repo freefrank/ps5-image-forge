@@ -303,3 +303,54 @@ def test_edit_image_rejects_unsupported_source(tmp_path: Path) -> None:
     plain.write_text("x", encoding="utf-8")
     with pytest.raises(backport.BackportError):
         pipeline.backport_image(plain, 5)
+
+
+def test_backport_image_stages_scratch_in_work_dir(
+        dump: Path, tmp_path: Path) -> None:
+    _patchable_eboot(dump / "eboot.bin", band=10)
+    image = core.build_exfat(dump, tmp_path / "lib" / "game.exfat")
+    ssd = tmp_path / "ssd"
+
+    # The pipeline's own scratch dirs carry these prefixes; backport's internal
+    # fself temp (system temp) is unrelated and must not be asserted on.
+    pipeline_prefixes = ("exfat_forge_edit_", "exfat_forge_tree_",
+                         "exfat_forge_pfs_", "exfat_forge_bak_")
+    staged: list[str] = []
+    real_mkdtemp = pipeline.tempfile.mkdtemp
+
+    def spy(*args, **kwargs):
+        prefix = kwargs.get("prefix", "")
+        if prefix.startswith(pipeline_prefixes):
+            staged.append(kwargs.get("dir", ""))
+        return real_mkdtemp(*args, **kwargs)
+
+    import unittest.mock as mock
+    with mock.patch.object(pipeline.tempfile, "mkdtemp", spy):
+        result = pipeline.backport_image(image, 5, work_dir=ssd)
+
+    assert result["patched"] == 1
+    # Every large scratch dir was created under the SSD work dir, not the
+    # image's (HDD) folder.
+    assert staged and all(str(ssd) in d for d in staged), staged
+    # Nothing is left behind on either volume.
+    assert not any(p.name.startswith("exfat_forge_") for p in ssd.iterdir())
+    assert not any(p.name.startswith("exfat_forge_")
+                   for p in (tmp_path / "lib").iterdir())
+
+
+def test_compress_passes_temp_dir_to_mkpfs(dump: Path, tmp_path: Path) -> None:
+    image = core.build_exfat(dump, tmp_path / "game.exfat")
+    ssd = tmp_path / "ssd"
+    captured: dict[str, object] = {}
+    real_pack = core.pack_pfs
+
+    def spy(*args, **kwargs):
+        captured["temp_dir"] = kwargs.get("temp_dir")
+        return real_pack(*args, **kwargs)
+
+    import unittest.mock as mock
+    with mock.patch.object(core, "pack_pfs", spy):
+        pipeline.run_job(pipeline.JobSpec(
+            source=image, output_dir=tmp_path / "out", fmt="pfs", level=1,
+            work_dir=str(ssd)))
+    assert captured["temp_dir"] == ssd

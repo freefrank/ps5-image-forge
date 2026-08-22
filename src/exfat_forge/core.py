@@ -380,6 +380,7 @@ def pack_pfs(image: Path, output: Path | None = None, *,
              compress: bool = True,
              compression_level: int = 9,
              threads: int | None = None,
+             temp_dir: Path | None = None,
              progress: ProgressFn | None = None) -> Path:
     """Convert an .exfat image to .ffpfsc via mkpfs's own CLI.
 
@@ -388,7 +389,8 @@ def pack_pfs(image: Path, output: Path | None = None, *,
     block compression (deflate, level 1-9) is on by default — that is what
     the "c" in .ffpfsc stands for; ``compress=False`` writes uncompressed
     blocks instead.  ``threads`` caps the compressor's worker processes
-    (default: all cores).
+    (default: all cores).  ``temp_dir`` moves MkPFS's block spool off the
+    output volume — point it at an SSD when packing a library on a slow HDD.
     """
     if output is None:
         output = image.with_suffix(".ffpfsc")
@@ -418,6 +420,10 @@ def pack_pfs(image: Path, output: Path | None = None, *,
         cmd += ["--no-compress"]
     if threads:
         cmd += ["--cpu-count", str(threads)]
+    if temp_dir is not None:
+        temp_dir = Path(temp_dir)
+        temp_dir.mkdir(parents=True, exist_ok=True)
+        cmd += ["--temp-folder", str(temp_dir)]
     if progress:
         progress(ProgressEvent("pfs", 0, 0,
                                "$ " + subprocess.list2cmdline(cmd)))

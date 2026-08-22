@@ -53,7 +53,8 @@ def cmd_build(args: argparse.Namespace) -> int:
         verify=not args.no_verify, cluster_size=args.cluster,
         compress=args.compress, level=args.level, threads=args.threads,
         keep_intermediate=args.keep_intermediate,
-        ffpkg_block=args.ffpkg_block, ffpkg_frag=args.ffpkg_frag)
+        ffpkg_block=args.ffpkg_block, ffpkg_frag=args.ffpkg_frag,
+        work_dir=args.work_dir or "")
     result = pipeline.run_job(spec, progress=_console_progress())
     print(_("write.image", path=result.output))
     mins, secs = divmod(int(result.duration_s), 60)
@@ -69,6 +70,7 @@ def cmd_compress(args: argparse.Namespace) -> int:
     output = Path(args.output) if args.output else image.with_suffix(".ffpfsc")
     result = core.pack_pfs(image, output, compress=args.compress,
                            compression_level=args.level, threads=args.threads,
+                           temp_dir=Path(args.work_dir) if args.work_dir else None,
                            progress=_console_progress())
     print(_("write.image", path=result))
     print(f"  {_fmt_gb(result.stat().st_size)}")
@@ -83,12 +85,13 @@ def cmd_backport(args: argparse.Namespace) -> int:
     """Downgrade SDK versions, or overlay a patch, on a folder or image."""
     source = Path(args.source)
     backup = not args.no_backup
+    work_dir = Path(args.work_dir) if args.work_dir else None
 
     if args.overwrite_from:
         patch = Path(args.overwrite_from)
         if _is_image(source):
             res = pipeline.overwrite_image(source, patch, backup=backup,
-                                           level=args.level,
+                                           level=args.level, work_dir=work_dir,
                                            progress=_console_progress())
             print(f"overwrote {res['written']} file(s) inside {source.name} "
                   f"({res['replaced']} replaced, {res['added']} added)")
@@ -110,7 +113,7 @@ def cmd_backport(args: argparse.Namespace) -> int:
         return 1
     if _is_image(source):
         res = pipeline.backport_image(source, args.target, backup=backup,
-                                      level=args.level,
+                                      level=args.level, work_dir=work_dir,
                                       progress=_console_progress())
         where = source.name
     elif source.is_dir():
@@ -226,6 +229,9 @@ def main(argv: list[str] | None = None) -> int:
                    help="ffpkg fragment size (default 65536)")
     b.add_argument("--no-verify", action="store_true",
                    help="skip the read-back verification pass")
+    b.add_argument("--work-dir",
+                   help="scratch dir for IO-heavy steps (e.g. an SSD); "
+                        "default: beside the output")
     b.set_defaults(fn=cmd_build)
 
     c = sub.add_parser("compress",
@@ -239,6 +245,9 @@ def main(argv: list[str] | None = None) -> int:
                    metavar="1-9", help="compression level (default 9)")
     c.add_argument("--threads", type=int,
                    help="compression worker processes (default: all cores)")
+    c.add_argument("--work-dir",
+                   help="scratch dir for MkPFS's spool (e.g. an SSD); "
+                        "default: beside the output")
     c.set_defaults(fn=cmd_compress)
 
     bp = sub.add_parser(
@@ -254,6 +263,9 @@ def main(argv: list[str] | None = None) -> int:
     bp.add_argument("--level", type=int, default=9, choices=range(1, 10),
                     metavar="1-9",
                     help="PFS recompression level when editing a .ffpfsc (default 9)")
+    bp.add_argument("--work-dir",
+                    help="scratch dir for unpack/repack of an image (e.g. an "
+                         "SSD); default: beside the image")
     bp.set_defaults(fn=cmd_backport)
 
     v = sub.add_parser("verify", help="verify an existing image")

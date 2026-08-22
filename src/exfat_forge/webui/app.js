@@ -501,6 +501,7 @@ $("lib-add").onclick = async () => {
   if (p) $("lib-folders").value = $("lib-folders").value ? $("lib-folders").value + ";" + p : p;
 };
 $("set-pick-output").onclick = () => pickInto("set-output", "dir");
+$("set-pick-workdir").onclick = () => pickInto("set-workdir", "dir");
 
 async function describeSource(path) {
   const b = bridge(); if (!b) return;
@@ -1341,6 +1342,7 @@ async function loadSettings() {
   const s = await b.get_settings();
   $("set-output").value = s.output_dir || "";
   $("set-libdirs").value = (s.library_dirs || []).join(";");
+  $("set-workdir").value = s.work_dir || "";
   const scale = applyUiScale(s.ui_scale == null ? 1 : s.ui_scale);
   $("set-scale").value = String(scale);
   $("set-cluster").value = String(s.cluster_size == null ? 65536 : s.cluster_size);
@@ -1385,6 +1387,7 @@ $("set-save").onclick = async () => {
   await b.save_settings({
     output_dir: $("set-output").value.trim(),
     library_dirs: $("set-libdirs").value.split(";").map(s => s.trim()).filter(Boolean),
+    work_dir: $("set-workdir").value.trim(),
     ui_scale: +$("set-scale").value,
     cluster_size: +$("set-cluster").value,
     verify_after_build: S.verify,

@@ -536,6 +536,12 @@
           <input type="text" id="set-libdirs" spellcheck="false" placeholder="D:\PS5;E:\dumps">
         </div>
         <div class="row">
+          <label class="field" data-i18n="set.workdir">WORK DIR</label>
+          <input type="text" id="set-workdir" spellcheck="false" data-i18n-ph="set.workdir.ph" placeholder="Blank = beside the output (put on an SSD)">
+          <button id="set-pick-workdir" data-i18n="btn.browse2">DIR…</button>
+        </div>
+        <div class="hint" data-i18n="set.workdir.hint">Scratch space for IO-heavy work (compress, unpack/repack). Point it at a fast SSD when your library lives on an HDD.</div>
+        <div class="row">
           <label class="field" data-i18n="set.scale">UI SCALE</label>
           <select id="set-scale" class="compact-select">
             <option value="0.8">80%</option>
