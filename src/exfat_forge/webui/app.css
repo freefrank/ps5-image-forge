@@ -171,11 +171,15 @@ html.dragging *, html.dragging *::before, html.dragging *::after {
 .panel h2 { font-size: 12px; letter-spacing: 2px; color: var(--cyan);
   margin-bottom: 9px; font-weight: 600; }
 
-.row { display: flex; align-items: center; gap: 9px; margin: 6px 0; }
+/* Rows wrap at every width: buttons never shrink (fixed labels, nowrap), so a
+   crowded row with several buttons would otherwise overflow the panel and clip
+   its button text — wrapping drops the overflow onto the next line instead. */
+.row { display: flex; align-items: center; gap: 9px; margin: 6px 0;
+  flex-wrap: wrap; }
 label.field { width: 78px; flex-shrink: 0; color: var(--text-dim);
   font-size: 11px; letter-spacing: 1px; text-align: right; }
 input[type=text], input[type=number], select {
-  flex: 1; min-width: 0; background: rgba(0,10,20,.7);
+  flex: 1 1 230px; min-width: 0; background: rgba(0,10,20,.7);
   border: 1px solid var(--cyan-dim); color: var(--text); font: inherit;
   font-size: 12px; padding: 5px 8px; outline: none; transition: all .2s;
 }
