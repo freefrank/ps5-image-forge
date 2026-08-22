@@ -356,6 +356,35 @@ def pack_pfs(image: Path, output: Path | None = None, *,
     return output
 
 
+def extract_pfs(image: Path, dest: Path, *,
+                progress: ProgressFn | None = None,
+                overwrite: bool = False) -> int:
+    """Unpack a .ffpfsc / .ffpfs image via mkpfs; returns the file count."""
+    dest.mkdir(parents=True, exist_ok=True)
+    if getattr(sys, "frozen", False):
+        cmd = [sys.executable, "--mkpfs"]
+    else:
+        cmd = [sys.executable, "-m", "mkpfs"]
+    cmd += ["unpack", str(image), str(dest), "--no-progress"]
+    if overwrite:
+        cmd.append("--overwrite")
+    if progress:
+        progress(ProgressEvent("extract", 0, 0, f"unpacking {image.name}"))
+    proc = subprocess.run(
+        cmd, capture_output=True, text=True, encoding="utf-8",
+        errors="replace",
+        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        env=dict(os.environ, PYTHONIOENCODING="utf-8:replace"))
+    if proc.returncode != 0:
+        raise RuntimeError(
+            f"mkpfs unpack failed (exit {proc.returncode}):\n"
+            f"{proc.stdout[-1500:]}\n{proc.stderr[-1500:]}")
+    count = sum(1 for p in dest.rglob("*") if p.is_file())
+    if progress:
+        progress(ProgressEvent("extract", 1, 1, f"{count:,} files"))
+    return count
+
+
 def _free_bytes(path: Path) -> int | None:
     try:
         import shutil
