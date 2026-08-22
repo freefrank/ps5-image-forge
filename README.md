@@ -1,4 +1,4 @@
-# exFAT Forge
+# PS5 Image Forge
 
 PS5 游戏 dump 镜像工具 —— exFAT Image Builder 的现代化免挂载重构版。
 
@@ -50,27 +50,27 @@ pip install -e .
 
 ```bash
 pip install pyinstaller
-python -m PyInstaller --onefile --windowed --name exFAT-Forge --collect-submodules mkpfs --collect-all webview --add-data "src/exfat_forge/webui;exfat_forge/webui" --add-data "src/exfat_forge/payload_catalog.json;exfat_forge" --add-data "vendor/payloads;exfat_forge/bundled_payloads" --add-data "vendor/ufs2tool;ufs2tool" entry.py
+python -m PyInstaller --onefile --windowed --name PS5-Image-Forge --collect-submodules mkpfs --collect-all webview --add-data "src/ps5_image_forge/webui;ps5_image_forge/webui" --add-data "src/ps5_image_forge/payload_catalog.json;ps5_image_forge" --add-data "vendor/payloads;ps5_image_forge/bundled_payloads" --add-data "vendor/ufs2tool;ufs2tool" entry.py
 ```
 
-产出单文件 `exFAT-Forge.exe`（当前约 32 MB，含 18 个 payload）：双击进 GUI；带参数即 CLI；`--selftest` 自检。
+产出单文件 `PS5-Image-Forge.exe`（当前约 32 MB，含 18 个 payload）：双击进 GUI；带参数即 CLI；`--selftest` 自检。
 
 ## CLI
 
 ```bash
-exfat-forge env
-exfat-forge build E:\PPSA21564-app0 -o D:\PS5
-exfat-forge build E:\dump -o D:\PS5 -f pfs --level 6
-exfat-forge build E:\dump -o D:\PS5 -f ffpkg
-exfat-forge build E:\dump -o D:\PS5 -f pfs --via ffpkg --keep-intermediate
-exfat-forge compress D:\PS5\PPSA21564.exfat -o D:\PS5\PPSA21564.ffpfsc --level 9
-exfat-forge backport D:\PS5\PPSA21564.exfat --target 5
-exfat-forge backport E:\PPSA21564-app0 --overwrite-from D:\patch.zip
-exfat-forge verify D:\PS5\PPSA21564.exfat --source E:\PPSA21564-app0
-exfat-forge extract D:\PS5\PPSA21564.ffpfsc D:\unpacked
-exfat-forge list D:\PS5\PPSA21564.exfat
-exfat-forge history
-exfat-forge catalog
+ps5-image-forge env
+ps5-image-forge build E:\PPSA21564-app0 -o D:\PS5
+ps5-image-forge build E:\dump -o D:\PS5 -f pfs --level 6
+ps5-image-forge build E:\dump -o D:\PS5 -f ffpkg
+ps5-image-forge build E:\dump -o D:\PS5 -f pfs --via ffpkg --keep-intermediate
+ps5-image-forge compress D:\PS5\PPSA21564.exfat -o D:\PS5\PPSA21564.ffpfsc --level 9
+ps5-image-forge backport D:\PS5\PPSA21564.exfat --target 5
+ps5-image-forge backport E:\PPSA21564-app0 --overwrite-from D:\patch.zip
+ps5-image-forge verify D:\PS5\PPSA21564.exfat --source E:\PPSA21564-app0
+ps5-image-forge extract D:\PS5\PPSA21564.ffpfsc D:\unpacked
+ps5-image-forge list D:\PS5\PPSA21564.exfat
+ps5-image-forge history
+ps5-image-forge catalog
 ```
 
 `compress` 把已有 exFAT 镜像压缩为 PFS（`.ffpfsc`）。`backport` 既能作用于
@@ -88,7 +88,7 @@ zip/文件夹按相对路径覆盖文件）。由于 ROM 可能上百 GB，备�
 自动清理；将已有 exFAT 镜像转换为 PFS 时也会读取镜像内的
 `sce_sys/param.json`，无需先解包。
 
-CLI 消息跟随系统语言，`EXFAT_FORGE_LANG=en|zh` 可覆盖。
+CLI 消息跟随系统语言，`PS5_IMAGE_FORGE_LANG=en|zh` 可覆盖。
 
 ## 开发
 
@@ -105,7 +105,7 @@ Backport 扫描/降级/备份与签名文件保护，以及 GUI 的完整后端�
 UI 可直接在浏览器里开发：
 
 ```bash
-python -m http.server 8899 -d src/exfat_forge/webui
+python -m http.server 8899 -d src/ps5_image_forge/webui
 ```
 
 无后端时页面进入 demo 模式，用合成数据渲染全部界面。
@@ -117,7 +117,7 @@ python -m http.server 8899 -d src/exfat_forge/webui
 以及从字符串推断的名称、版本与能力标签（ftp / mount / backport / jailbreak 等）。
 
 说明按优先级取：**你写的备注** > 同名 `.txt` / `.md` / `.json` > 从 ELF 自动生成。
-备注存在 `%APPDATA%/exfat-forge/payload_notes.json`，不会改动 payload 文件本身。
+备注存在 `%APPDATA%/ps5-image-forge/payload_notes.json`，不会改动 payload 文件本身。
 
 非 ELF 文件或架构异常的会标黄警告，避免发送必然失败的文件。
 
@@ -125,7 +125,7 @@ python -m http.server 8899 -d src/exfat_forge/webui
 
 Payload 页内置 18 个常用 payload 二进制及完整目录元数据（名称、作者、版本、
 适用固件、说明、项目地址）。用户手动选择 PS5 固件后默认只显示兼容项；点“使用”时
-先按随包清单校验 SHA-256，再原子释放到 `%APPDATA%/exfat-forge/payloads`（或用户选定的
+先按随包清单校验 SHA-256，再原子释放到 `%APPDATA%/ps5-image-forge/payloads`（或用户选定的
 payload 目录）。每个二进制都固定到目录标注的项目上游 release URL，来源清单位于
 `vendor/payloads/manifest.json`。无法直接取得的少数条目仍显示“打开页面”。
 
@@ -160,4 +160,4 @@ GPL-3.0（跟随 [MkPFS](https://github.com/PSBrew/MkPFS) 上游）。
 详见该目录下的 `PROVENANCE.md`。
 Auto Backport 使用了 [ps5-payload-dev/sdk](https://github.com/ps5-payload-dev/sdk)
 中未修改的 `make_fself.py`；出处、哈希及 GPL-3.0-or-later 文本位于
-`src/exfat_forge/_vendor/`。
+`src/ps5_image_forge/_vendor/`。

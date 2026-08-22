@@ -14,10 +14,10 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-CATALOG = ROOT / "src" / "exfat_forge" / "payload_catalog.json"
+CATALOG = ROOT / "src" / "ps5_image_forge" / "payload_catalog.json"
 DEST = ROOT / "vendor" / "payloads"
 MANIFEST = DEST / "manifest.json"
-USER_AGENT = "exfat-forge-payload-bundler"
+USER_AGENT = "ps5-image-forge-payload-bundler"
 
 
 def main() -> int:

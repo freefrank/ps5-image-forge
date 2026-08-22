@@ -15,7 +15,7 @@ from pathlib import Path
 
 import pytest
 
-from exfat_forge import ps5
+from ps5_image_forge import ps5
 
 
 def _serve_once(handler, host: str = "127.0.0.1") -> tuple[str, int, threading.Thread]:

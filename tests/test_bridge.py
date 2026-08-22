@@ -17,8 +17,8 @@ from pathlib import Path
 
 import pytest
 
-from exfat_forge import i18n
-from exfat_forge.bridge import Bridge
+from ps5_image_forge import i18n
+from ps5_image_forge.bridge import Bridge
 
 
 @pytest.fixture(autouse=True)
@@ -45,7 +45,7 @@ def _patchable_eboot(path: Path, *, band: int = 10) -> Path:
     """A minimal ELF whose SCE process-param carries an SDK band."""
     import struct
 
-    from exfat_forge import backport
+    from ps5_image_forge import backport
 
     data = bytearray(0x180)
     data[:4] = backport.ELF_MAGIC
@@ -279,7 +279,7 @@ def test_extract_and_inspect_image(dump: Path, tmp_path: Path) -> None:
 
 
 def test_compress_exfat_to_pfs_via_bridge(dump: Path, tmp_path: Path) -> None:
-    from exfat_forge import core
+    from ps5_image_forge import core
 
     image = core.build_exfat(dump, tmp_path / "game.exfat")
     b = RecordingBridge()
@@ -292,7 +292,7 @@ def test_compress_exfat_to_pfs_via_bridge(dump: Path, tmp_path: Path) -> None:
 
 
 def test_backport_image_via_bridge(dump: Path, tmp_path: Path) -> None:
-    from exfat_forge import backport, core
+    from ps5_image_forge import backport, core
 
     _patchable_eboot(dump / "eboot.bin", band=10)
     image = core.build_exfat(dump, tmp_path / "game.exfat")
@@ -305,13 +305,13 @@ def test_backport_image_via_bridge(dump: Path, tmp_path: Path) -> None:
     assert result is not None and result[0]["patched"] == 1
 
     check = tmp_path / "check"
-    from exfat_forge import pipeline
+    from ps5_image_forge import pipeline
     pipeline.extract_any(image, check)
     assert backport.inspect_file(check / "eboot.bin").sdk_band == 5
 
 
 def test_overwrite_folder_and_image_via_bridge(dump: Path, tmp_path: Path) -> None:
-    from exfat_forge import core, pipeline
+    from ps5_image_forge import core, pipeline
 
     patch = tmp_path / "patch"
     patch.mkdir()

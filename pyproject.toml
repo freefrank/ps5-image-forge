@@ -3,7 +3,7 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "exfat-forge"
+name = "ps5-image-forge"
 version = "0.6.0"
 description = "Mount-free exFAT / PFS image builder for PS5 game dumps"
 readme = "README.md"
@@ -16,9 +16,9 @@ dependencies = [
 ]
 
 [project.scripts]
-exfat-forge = "exfat_forge.cli:main"
-exfat-forge-gui = "exfat_forge.gui:main"
-exfat-forge-app = "exfat_forge.app:main"
+ps5-image-forge = "ps5_image_forge.cli:main"
+ps5-image-forge-gui = "ps5_image_forge.gui:main"
+ps5-image-forge-app = "ps5_image_forge.app:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

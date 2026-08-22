@@ -1,6 +1,6 @@
 """Persisted settings and build history.
 
-Both live under ``%APPDATA%/exfat-forge`` (never next to the exe, which may
+Both live under ``%APPDATA%/ps5-image-forge`` (never next to the exe, which may
 sit on read-only media). Writes go through a temp file + atomic replace so a
 crash mid-save cannot corrupt the store — the old tool wrote settings in
 place and a killed process could leave truncated JSON.
@@ -19,8 +19,20 @@ from typing import Any
 
 def config_dir() -> Path:
     base = os.environ.get("APPDATA") or os.path.expanduser("~")
-    path = Path(base) / "exfat-forge"
+    path = Path(base) / "ps5-image-forge"
     path.mkdir(parents=True, exist_ok=True)
+    # One-time carry-over from the pre-rename folder so an existing user keeps
+    # their settings, history and payload notes after the exFAT Forge → PS5
+    # Image Forge rename. Only fills gaps; never overwrites newer data.
+    legacy = Path(base) / "exfat-forge"
+    if legacy.is_dir() and legacy != path:
+        for name in ("settings.json", "history.json", "payload_notes.json"):
+            src, dst = legacy / name, path / name
+            if src.is_file() and not dst.exists():
+                try:
+                    dst.write_bytes(src.read_bytes())
+                except OSError:
+                    pass
     return path
 
 

@@ -14,7 +14,7 @@ from pathlib import Path
 
 import pytest
 
-from exfat_forge import catalog
+from ps5_image_forge import catalog
 
 
 def _serve(body: bytes, *, chunked_delay: threading.Event | None = None):

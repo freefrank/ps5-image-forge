@@ -11,7 +11,7 @@ from __future__ import annotations
 import socket
 import threading
 
-from exfat_forge import ps5_services as svc
+from ps5_image_forge import ps5_services as svc
 
 
 def _listener() -> tuple[int, socket.socket]:

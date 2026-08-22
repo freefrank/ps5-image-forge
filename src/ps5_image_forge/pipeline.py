@@ -344,7 +344,7 @@ def _edit_tree(image: Path, tree: Path, mutate, affected_rels, *,
                backup: bool, work_dir: Path | None = None) -> dict:
     """Snapshot affected originals, run ``mutate``, and back up what changed."""
     staging = Path(tempfile.mkdtemp(
-        prefix="exfat_forge_bak_",
+        prefix="ps5_image_forge_bak_",
         dir=str(_scratch_base(work_dir, image.parent))))
     try:
         snapped = list(affected_rels(tree)) if backup else []
@@ -390,7 +390,7 @@ def _edit_image_in_place(image: Path, mutate, affected_rels, *,
     scratch = _scratch_base(work_dir, image.parent)
 
     if ext in (".ffpfsc", ".ffpfs"):
-        work = Path(tempfile.mkdtemp(prefix="exfat_forge_pfs_",
+        work = Path(tempfile.mkdtemp(prefix="ps5_image_forge_pfs_",
                                      dir=str(scratch)))
         try:
             extract_any(image, work, progress=progress, cancel=cancel,
@@ -400,7 +400,7 @@ def _edit_image_in_place(image: Path, mutate, affected_rels, *,
             if len(inners) != 1:
                 raise backport.BackportError(
                     "unexpected PFS payload (not a single exfat image)")
-            tree = Path(tempfile.mkdtemp(prefix="exfat_forge_tree_",
+            tree = Path(tempfile.mkdtemp(prefix="ps5_image_forge_tree_",
                                          dir=str(scratch)))
             try:
                 extract_any(inners[0], tree, progress=progress, cancel=cancel,
@@ -428,7 +428,7 @@ def _edit_image_in_place(image: Path, mutate, affected_rels, *,
             shutil.rmtree(work, ignore_errors=True)
         return result, image
 
-    tree = Path(tempfile.mkdtemp(prefix="exfat_forge_edit_",
+    tree = Path(tempfile.mkdtemp(prefix="ps5_image_forge_edit_",
                                  dir=str(scratch)))
     try:
         extract_any(image, tree, progress=progress, cancel=cancel,

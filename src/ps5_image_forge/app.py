@@ -6,7 +6,7 @@ Dispatch:
                          which re-invokes this exe as its subprocess)
 * ``--selftest``      -> build+verify+pack a tiny synthetic dump in a temp
                          dir; exit 0 on success (used to validate the exe)
-* anything else       -> the exfat-forge CLI
+* anything else       -> the ps5-image-forge CLI
 
 ``multiprocessing.freeze_support()`` must run first: mkpfs's compressor
 spawns worker processes, and under PyInstaller those re-enter this exe.

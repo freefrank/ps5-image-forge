@@ -9,6 +9,6 @@ patched plaintext PS5 ELF back into a fake-signed SELF container.
 - SHA-256: `2894C0114371B680E305B5CBF9DCC643ABF8A48B0E70D29B01D2B81AF9C66E94`
 - License: GPL-3.0-or-later; see `PS5_SDK_LICENSE`.
 
-The SELF extraction and SDK-patching code in `exfat_forge.backport` is an
+The SELF extraction and SDK-patching code in `ps5_image_forge.backport` is an
 independent implementation and is not copied from the license-unclear embedded
 Backport scripts in the reference application.

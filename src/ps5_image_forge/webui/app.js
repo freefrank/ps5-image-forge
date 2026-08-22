@@ -1,4 +1,4 @@
-/* exFAT Forge — UI controller.
+/* PS5 Image Forge — UI controller.
  *
  * Talks to Python through window.pywebview.api (see bridge.py). With no
  * bridge present the page runs in DEMO mode with synthetic data so the

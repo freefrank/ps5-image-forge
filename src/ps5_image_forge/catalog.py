@@ -34,7 +34,7 @@ import urllib.request
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
-_UA = "exfat-forge"
+_UA = "ps5-image-forge"
 _TIMEOUT = 30
 
 
@@ -62,7 +62,7 @@ class CatalogEntry:
 def _data_file() -> Path:
     """Locate the JSON next to this module, frozen or not."""
     base = Path(getattr(sys, "_MEIPASS", Path(__file__).parent))
-    here = base / "exfat_forge" / "payload_catalog.json"
+    here = base / "ps5_image_forge" / "payload_catalog.json"
     return here if here.is_file() else Path(__file__).with_name("payload_catalog.json")
 
 
@@ -85,7 +85,7 @@ def metadata_source() -> str:
 def _bundle_dir() -> Path:
     """Payload assets in the source tree, or in a frozen one-file bundle."""
     if getattr(sys, "frozen", False):
-        return Path(sys._MEIPASS) / "exfat_forge" / "bundled_payloads"  # type: ignore[attr-defined]
+        return Path(sys._MEIPASS) / "ps5_image_forge" / "bundled_payloads"  # type: ignore[attr-defined]
     return Path(__file__).resolve().parents[2] / "vendor" / "payloads"
 
 

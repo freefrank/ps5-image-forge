@@ -1,6 +1,6 @@
 # 开发进度与需求
 
-本文件记录 exFAT Forge 的**当前状态**、**已确定的需求与设计决策**、**未完成的工作**。
+本文件记录 PS5 Image Forge 的**当前状态**、**已确定的需求与设计决策**、**未完成的工作**。
 README 面向使用者，本文件面向继续开发的人（包括未来的我们自己）。
 
 - 版本：v0.6.0
@@ -88,7 +88,7 @@ entry.py
 | 1 | 单文件 exe | PyInstaller `--onefile --windowed`，当前约 32 MB（含 18 个 payload）；GUI/CLI 同一个 exe，靠 argv 分流 |
 | 2 | 带 `.ffpfsc` 压缩 | MkPFS PFSC 块压缩，deflate 级别 1–9，默认 9 |
 | 3 | 赛博朋克 UI + 动效 | 霓虹面板、扫描线、流光进度条；无边框窗口 + 自定义标题栏 |
-| 4 | i18n | 中/英实时切换，前后端各一套；CLI 跟随系统语言，`EXFAT_FORGE_LANG` 可覆盖 |
+| 4 | i18n | 中/英实时切换，前后端各一套；CLI 跟随系统语言，`PS5_IMAGE_FORGE_LANG` 可覆盖 |
 | 5 | **完整复刻**原工具功能（含 PS5 工具）并现代化 | 12 个页面全部到位，见 README 功能表 |
 | 6 | 集成 UFS2Tool + .NET | `vendor/ufs2tool/`；**用 `dotnet UFS2Tool.dll` 调用**，绕过 exe 清单里的 `requireAdministrator`（那是给 Dokan 挂载用的，makefs 不需要） |
 | 7 | Payload 库：选目录、从文件读信息与说明 | `payloads.py`：ELF 头 / build-id / `.comment` / `.rodata` 字符串推断名称、版本、能力标签 |
@@ -134,13 +134,13 @@ entry.py
 ```
 
 ```bash
-python -m PyInstaller --onefile --windowed --name exFAT-Forge --collect-submodules mkpfs --collect-all webview --add-data "src/exfat_forge/webui;exfat_forge/webui" --add-data "src/exfat_forge/payload_catalog.json;exfat_forge" --add-data "vendor/payloads;exfat_forge/bundled_payloads" --add-data "vendor/ufs2tool;ufs2tool" entry.py
+python -m PyInstaller --onefile --windowed --name PS5-Image-Forge --collect-submodules mkpfs --collect-all webview --add-data "src/ps5_image_forge/webui;ps5_image_forge/webui" --add-data "src/ps5_image_forge/payload_catalog.json;ps5_image_forge" --add-data "vendor/payloads;ps5_image_forge/bundled_payloads" --add-data "vendor/ufs2tool;ufs2tool" entry.py
 ```
 
 UI 单独开发（无后端时进 demo 模式，用合成数据渲染全部界面）：
 
 ```bash
-python -m http.server 8899 -d src/exfat_forge/webui
+python -m http.server 8899 -d src/ps5_image_forge/webui
 ```
 
 `--selftest` 除了跑一遍构建/校验/压缩，还会 `catalog.load()` ——
@@ -221,7 +221,7 @@ GUI 全部后端接口（无窗口驱动）。
 
 落地：
 
-- `src/exfat_forge/payload_catalog.json`：19 条目录元数据
+- `src/ps5_image_forge/payload_catalog.json`：19 条目录元数据
   （id / 标题 / 文件名 / 作者 / 版本 / 说明 / 项目地址 / 下载地址 / 适用固件 / 目标端口）。
   由 `payload_map.js` 转换而来，`metadata_source` 字段记录来源。
 - `vendor/payloads/`：18 个固定版本二进制（约 21.1 MiB）、哈希清单与出处说明。
@@ -260,7 +260,7 @@ GUI 全部后端接口（无窗口驱动）。
   "Image is too small: no more cylinder groups available"，
   现按 `1.15 / 1.45 / 2.00` 三档递增系数 + 冗余重试，未做精确的柱面组计算。
 - **`vendor/ufs2tool/` 来自 exFAT Image Builder v4.0.2**，出处见该目录下 `PROVENANCE.md`。
-- **`src/exfat_forge/_vendor/make_fself.py` 来自 ps5-payload-dev/sdk**，保持上游文件不变；
+- **`src/ps5_image_forge/_vendor/make_fself.py` 来自 ps5-payload-dev/sdk**，保持上游文件不变；
   哈希、来源与 GPL-3.0-or-later 文本位于同目录。SELF 还原与流水线编排为本项目独立实现。
 
 ---

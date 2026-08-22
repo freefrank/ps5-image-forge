@@ -13,7 +13,7 @@ from pathlib import Path
 
 import pytest
 
-from exfat_forge import core
+from ps5_image_forge import core
 
 
 @pytest.fixture()

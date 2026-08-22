@@ -136,7 +136,7 @@ window.I18N = {
     "about.payloads.community": "Community project",
     // runtime messages
     "demo": "DEMO MODE — NO BRIDGE",
-    "msg.hello": "exFAT Forge online. No mounts, no admin, no locale bugs.",
+    "msg.hello": "PS5 Image Forge online. No mounts, no admin, no locale bugs.",
     "msg.need_source": "Select a source directory first.",
     "msg.need_image": "Select an image file first.",
     "msg.need_dest": "Select a destination folder first.",
@@ -304,7 +304,7 @@ window.I18N = {
     "about.payloads.hint": "感谢内置目录中使用到的所有上游 Payload 项目与作者。",
     "about.payloads.community": "社区项目",
     "demo": "演示模式 — 无后端",
-    "msg.hello": "exFAT Forge 已就绪。零挂载、零管理员、零本地化炸弹。",
+    "msg.hello": "PS5 Image Forge 已就绪。零挂载、零管理员、零本地化炸弹。",
     "msg.need_source": "请先选择源目录。",
     "msg.need_image": "请先选择镜像文件。",
     "msg.need_dest": "请先选择目标文件夹。",

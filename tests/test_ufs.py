@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from exfat_forge import ufs
+from ps5_image_forge import ufs
 
 pytestmark = pytest.mark.skipif(
     not (ufs.tool_available() and ufs.dotnet_status().available),

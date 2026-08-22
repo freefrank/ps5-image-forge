@@ -228,7 +228,7 @@ def _fake_sign(source: Path, output: Path) -> None:
 
 
 def _inspect_signed(path: Path) -> ElfSdkInfo:
-    with tempfile.TemporaryDirectory(prefix="exfat_forge_fself_") as tmp:
+    with tempfile.TemporaryDirectory(prefix="ps5_image_forge_fself_") as tmp:
         elf_path = Path(tmp) / "unsigned.elf"
         try:
             _extract_fself(path, elf_path)
@@ -677,7 +677,7 @@ def patch_file(path: Path, target: int, *, backup: bool = True) -> ElfSdkInfo:
     if info.ps5_sdk == ps5 and info.ps4_sdk == ps4:
         return info
 
-    work_dir = Path(tempfile.mkdtemp(prefix="exfat_forge_backport_"))
+    work_dir = Path(tempfile.mkdtemp(prefix="ps5_image_forge_backport_"))
     unsigned = work_dir / "unsigned.elf"
     patched = work_dir / "patched.elf"
     fd, result_name = tempfile.mkstemp(prefix=path.name + ".", suffix=".tmp",

@@ -184,7 +184,7 @@ class Bridge:
             "ffpkg": {"available": ufs.tool_available() and dn.available,
                       "detail": dn.detail,
                       "tool": ufs.tool_available()},
-            "version": __import__("exfat_forge").__version__,
+            "version": __import__("ps5_image_forge").__version__,
         }
 
     # ── dialogs ───────────────────────────────────────────────────

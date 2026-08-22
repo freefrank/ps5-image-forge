@@ -12,3 +12,7 @@ dist/
 *.ffpkg
 *.ffpkg.part
 *.spec
+.build-venv*/
+build-candidate*/
+dist-candidate*/
+.test-tmp-*/

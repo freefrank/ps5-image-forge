@@ -8,8 +8,8 @@ from pathlib import Path
 
 import pytest
 
-from exfat_forge import backport, core, library, pipeline, ufs
-from exfat_forge.settings import History, HistoryEntry, Settings
+from ps5_image_forge import backport, core, library, pipeline, ufs
+from ps5_image_forge.settings import History, HistoryEntry, Settings
 
 _HAS_UFS = ufs.tool_available() and ufs.dotnet_status().available
 
@@ -79,6 +79,25 @@ def test_settings_roundtrip_and_unknown_keys(tmp_path: Path) -> None:
     loaded = Settings.load()
     assert loaded.output_dir == r"D:\PS5"
     assert loaded.pfs_level == 4
+
+
+def test_settings_migrate_from_prerename_folder(tmp_path: Path) -> None:
+    """After the rename, an existing user keeps their old settings/history."""
+    appdata = tmp_path / "appdata"
+    legacy = appdata / "exfat-forge"
+    legacy.mkdir(parents=True)
+    (legacy / "settings.json").write_text(
+        json.dumps({"output_dir": r"E:\games", "pfs_level": 3}),
+        encoding="utf-8")
+    (legacy / "history.json").write_text("[]", encoding="utf-8")
+
+    loaded = Settings.load()
+    assert loaded.output_dir == r"E:\games" and loaded.pfs_level == 3
+    # migration fills gaps only; a later save must not touch the legacy copy
+    loaded.output_dir = r"F:\new"
+    loaded.save()
+    assert json.loads((legacy / "settings.json").read_text())["output_dir"] \
+        == r"E:\games"
 
 
 def test_settings_load_survives_corrupt_file() -> None:
@@ -313,8 +332,8 @@ def test_backport_image_stages_scratch_in_work_dir(
 
     # The pipeline's own scratch dirs carry these prefixes; backport's internal
     # fself temp (system temp) is unrelated and must not be asserted on.
-    pipeline_prefixes = ("exfat_forge_edit_", "exfat_forge_tree_",
-                         "exfat_forge_pfs_", "exfat_forge_bak_")
+    pipeline_prefixes = ("ps5_image_forge_edit_", "ps5_image_forge_tree_",
+                         "ps5_image_forge_pfs_", "ps5_image_forge_bak_")
     staged: list[str] = []
     real_mkdtemp = pipeline.tempfile.mkdtemp
 
@@ -333,8 +352,8 @@ def test_backport_image_stages_scratch_in_work_dir(
     # image's (HDD) folder.
     assert staged and all(str(ssd) in d for d in staged), staged
     # Nothing is left behind on either volume.
-    assert not any(p.name.startswith("exfat_forge_") for p in ssd.iterdir())
-    assert not any(p.name.startswith("exfat_forge_")
+    assert not any(p.name.startswith("ps5_image_forge_") for p in ssd.iterdir())
+    assert not any(p.name.startswith("ps5_image_forge_")
                    for p in (tmp_path / "lib").iterdir())
 
 

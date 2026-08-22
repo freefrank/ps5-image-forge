@@ -103,14 +103,14 @@ def _install_native_resize(window) -> None:
 
 def webui_dir() -> Path:
     if getattr(sys, "frozen", False):
-        return Path(sys._MEIPASS) / "exfat_forge" / "webui"  # type: ignore[attr-defined]
+        return Path(sys._MEIPASS) / "ps5_image_forge" / "webui"  # type: ignore[attr-defined]
     return Path(__file__).parent / "webui"
 
 
 def main() -> int:
     api = Bridge()
     window = webview.create_window(
-        "exFAT Forge",
+        "PS5 Image Forge",
         (webui_dir() / "index.html").as_uri(),
         js_api=api,
         width=1120, height=780, min_size=(720, 520), resizable=True,

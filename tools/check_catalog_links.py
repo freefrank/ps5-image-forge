@@ -18,13 +18,13 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from exfat_forge import catalog          # noqa: E402
+from ps5_image_forge import catalog          # noqa: E402
 
 
 def check(url: str) -> tuple[bool, str]:
     """Ask for the first kilobyte — enough to prove the asset is served."""
     req = urllib.request.Request(url, headers={
-        "User-Agent": "exfat-forge-linkcheck", "Range": "bytes=0-1023"})
+        "User-Agent": "ps5-image-forge-linkcheck", "Range": "bytes=0-1023"})
     try:
         with urllib.request.urlopen(req, timeout=30) as resp:
             return True, f"{resp.status} {resp.headers.get('Content-Type', '')}"

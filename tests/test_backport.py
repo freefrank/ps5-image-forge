@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from exfat_forge import backport
+from ps5_image_forge import backport
 
 
 @pytest.mark.parametrize(("firmware", "target"), [

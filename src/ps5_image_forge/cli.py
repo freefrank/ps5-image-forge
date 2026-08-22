@@ -198,7 +198,7 @@ def cmd_list(args: argparse.Namespace) -> int:
 
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(
-        prog="exfat-forge",
+        prog="ps5-image-forge",
         description="Mount-free exFAT / PFS image builder for PS5 game dumps. "
                     "No admin rights, no drive letters, no locale bugs.")
     sub = p.add_subparsers(dest="cmd", required=True)
