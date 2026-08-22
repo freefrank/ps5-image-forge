@@ -5,7 +5,7 @@ README 面向使用者，本文件面向继续开发的人（包括未来的我�
 
 - 版本：v0.3.0（开发中）
 - 更新日期：2026-08-22
-- 测试：`91 passed`（`.venv/Scripts/python.exe -m pytest tests/ -q`）
+- 测试：`92 passed`（`.venv/Scripts/python.exe -m pytest tests/ -q`）
 
 ---
 
@@ -116,6 +116,8 @@ entry.py
    同时 `html.dragging` 暂停所有动画与过渡。
    扫描线也从动画 `background-position`（每帧全屏重绘）改成独立层上的
    `transform`（GPU 合成，不重绘）。
+   同源问题：**内核日志按批推送**（≤200 行或 100 ms 一批），
+   不是每行一次 `_js()`。刷屏的主机会用同样的方式打满 UI 线程。
 7. **子进程 stdio 强制 UTF-8**（`PYTHONIOENCODING=utf-8:replace` + `reconfigure`）。
    MkPFS 会打印 🎉，中文 Windows 的 GBK 控制台会 `UnicodeEncodeError` 直接把冻结进程卡死。
 
@@ -140,7 +142,7 @@ python -m http.server 8899 -d src/exfat_forge/webui
 `--selftest` 除了跑一遍构建/校验/压缩，还会 `catalog.load()` ——
 **打包后数据文件丢没丢，只有冻结的 exe 能证明**，import 通过不代表 JSON 进了 bundle。
 
-91 个测试覆盖：镜像构建/校验/**腐蚀检测**/逐字节解包往返、三格式流水线、
+92 个测试覆盖：镜像构建/校验/**腐蚀检测**/逐字节解包往返、三格式流水线、
 设置与历史持久化（含损坏文件与旧版本字段）、库扫描、payload ELF 解析（含真实 PS5 payload）、
 PS5 协议与端口扫描（本地 socket 服务器模拟真实线路行为）、
 payload 目录与下载（含取消 / 失败不留残留文件 / 拒绝非 https）、GUI 全部后端接口（无窗口驱动）。

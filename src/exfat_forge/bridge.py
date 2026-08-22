@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import json
 import threading
+import time
 import traceback
 from dataclasses import asdict
 from pathlib import Path
@@ -416,10 +417,24 @@ class Bridge:
         self._klog = ps5.KernelLog(host, int(port))
 
         def pump() -> None:
+            # Batch the lines. Every _js() is a synchronous IPC call, and a
+            # console under load emits far more lines per second than the UI
+            # thread can absorb one at a time -- the same cost that made
+            # window dragging stall.
+            batch: list[str] = []
+            last = time.monotonic()
             try:
                 for line in self._klog.stream():
-                    self._js("onKlog", line)
+                    batch.append(line)
+                    now = time.monotonic()
+                    if len(batch) >= 200 or now - last >= 0.1:
+                        self._js("onKlog", batch)
+                        batch, last = [], now
+                if batch:
+                    self._js("onKlog", batch)
             except ps5.PS5Error as exc:
+                if batch:
+                    self._js("onKlog", batch)
                 self._js("onKlogError", str(exc))
 
         threading.Thread(target=pump, daemon=True).start()

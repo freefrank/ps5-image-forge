@@ -252,3 +252,38 @@ def test_download_rejects_unknown_entry(tmp_path: Path) -> None:
 
 def test_open_url_refuses_non_https() -> None:
     assert RecordingBridge().open_url("file:///C:/Windows")["ok"] is False
+
+
+def test_klog_lines_arrive_batched() -> None:
+    """Every _js() is an IPC call, so the pump must not make one per line."""
+    import socket
+
+    srv = socket.socket()
+    srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    srv.bind(("127.0.0.1", 0))
+    srv.listen(1)
+    port = srv.getsockname()[1]
+    lines = [f"kernel: line {i}" for i in range(500)]
+
+    def serve() -> None:
+        conn, _ = srv.accept()
+        with conn:
+            conn.sendall(("\n".join(lines) + "\n").encode())
+        srv.close()
+
+    threading.Thread(target=serve, daemon=True).start()
+
+    b = RecordingBridge()
+    b.klog_start("127.0.0.1", port)
+    deadline = time.monotonic() + 15
+    got: list[str] = []
+    while len(got) < len(lines) and time.monotonic() < deadline:
+        got = [ln for n, a in b.calls if n == "onKlog" for ln in a[0]]
+        time.sleep(0.05)
+    b.klog_stop()
+
+    pushes = [a for n, a in b.calls if n == "onKlog"]
+    assert got[:len(lines)] == lines
+    assert all(isinstance(a[0], list) for a in pushes)
+    assert len(pushes) < len(lines) / 10, \
+        f"{len(pushes)} pushes for {len(lines)} lines — not batching"

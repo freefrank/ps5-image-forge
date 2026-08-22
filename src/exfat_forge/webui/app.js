@@ -166,10 +166,20 @@ window.forge = {
   onDone: m => jobEnd("done", m),
   onError: m => jobEnd("error", t("err.prefix") + m),
   onCancelled: () => jobEnd("cancelled", t("phase.cancelled")),
-  onKlog: line => {
-    log("kl-log", line);
-    if (!S.follow) return;
-    const el = $("kl-log"); el.scrollTop = el.scrollHeight;
+  onKlog: lines => {
+    // arrives as a batch; append in one pass so a busy console cannot
+    // reflow the box once per line
+    const el = $("kl-log");
+    const frag = document.createDocumentFragment();
+    for (const line of lines) {
+      const div = document.createElement("div");
+      div.className = "ln";
+      div.textContent = line;
+      frag.appendChild(div);
+    }
+    el.appendChild(frag);
+    while (el.childNodes.length > 600) el.removeChild(el.firstChild);
+    if (S.follow) el.scrollTop = el.scrollHeight;
   },
   onKlogError: m => {
     log("kl-log", t("err.prefix") + m, "err");
