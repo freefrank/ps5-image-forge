@@ -476,10 +476,10 @@ details.advanced > summary:hover,
 .advanced-block:not([open]) > summary { margin-bottom: 0; }
 
 #page-payload.on { display: flex; flex-direction: column; }
-#page-payload .payload-catalog-panel { order: 1; }
+#page-payload .payload-send-panel { order: 1; }
 #page-payload .payload-local-panel { order: 2; }
-#page-payload .payload-folder-panel { order: 3; }
-#page-payload .payload-send-panel { order: 4; }
+#page-payload .payload-catalog-panel { order: 3; }
+#page-payload .payload-folder-panel { order: 4; }
 #page-payload .payload-console-panel { order: 5; }
 
 /* Native-looking resize hit zones for the frameless WebView window. */
