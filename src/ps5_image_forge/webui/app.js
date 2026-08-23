@@ -9,7 +9,7 @@
 const $ = id => document.getElementById(id);
 const $$ = sel => Array.from(document.querySelectorAll(sel));
 const bridge = () => (window.pywebview && window.pywebview.api) || null;
-const APP_VERSION = "0.0.4";
+const APP_VERSION = "0.7.4";
 let currentUiScale = 1;
 
 function syncScaleLayout() {
