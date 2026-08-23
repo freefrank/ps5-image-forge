@@ -29,6 +29,10 @@ _STRINGS: dict[str, dict[str, str]] = {
         "upload.ok": "uploaded {path}",
         "upload.all": "{count} file(s) uploaded",
         "payload.ok": "sent {name} ({bytes:,} bytes)",
+        "ftp.moved": "moved {name}",
+        "ftp.copied": "copied {name}",
+        "ftp.paste_done": "pasted {count} item(s)",
+        "ftp.download_done": "downloaded {count} item(s) to {dest}",
     },
     "zh": {
         "scan.done": "[扫描] {files:,} 个文件, {dirs:,} 个目录, {size}",
@@ -47,6 +51,10 @@ _STRINGS: dict[str, dict[str, str]] = {
         "upload.ok": "已上传 {path}",
         "upload.all": "已上传 {count} 个文件",
         "payload.ok": "已发送 {name} ({bytes:,} 字节)",
+        "ftp.moved": "已移动 {name}",
+        "ftp.copied": "已复制 {name}",
+        "ftp.paste_done": "已粘贴 {count} 项",
+        "ftp.download_done": "已下载 {count} 项到 {dest}",
     },
 }
 

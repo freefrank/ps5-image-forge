@@ -12,6 +12,8 @@ window.
 from __future__ import annotations
 
 import json
+import shutil
+import tempfile
 import threading
 import time
 import traceback
@@ -508,6 +510,122 @@ class Bridge:
                                     cancel=self._cancel)
                 self._log(i18n.t("upload.ok", path=remote), "ok")
         self._js("onDone", i18n.t("upload.all", count=len(files)))
+
+    # ── FTP file management ───────────────────────────────────────
+    # Quick operations run synchronously and return {ok}; byte-moving ones
+    # (copy/paste, download) run on the worker thread with progress + cancel.
+
+    def _ftp_child(self, base: str, name: str) -> str:
+        return f"{(base or '/').rstrip('/')}/{name}"
+
+    def ftp_mkdir(self, host: str, port: int, parent: str, name: str) -> dict:
+        name = (name or "").strip().strip("/")
+        if not name or "/" in name or name in (".", ".."):
+            return {"ok": False, "error": "invalid folder name"}
+        try:
+            with ps5.PS5Ftp(host, int(port)) as ftp:
+                ftp.makedirs(self._ftp_child(parent, name))
+        except ps5.PS5Error as exc:
+            return {"ok": False, "error": str(exc)}
+        return {"ok": True}
+
+    def ftp_rename(self, host: str, port: int, src: str, new_name: str) -> dict:
+        new_name = (new_name or "").strip().strip("/")
+        if not new_name or "/" in new_name or new_name in (".", ".."):
+            return {"ok": False, "error": "invalid name"}
+        parent = (src or "").rstrip("/").rsplit("/", 1)[0] or "/"
+        try:
+            with ps5.PS5Ftp(host, int(port)) as ftp:
+                ftp.rename(src, self._ftp_child(parent, new_name))
+        except ps5.PS5Error as exc:
+            return {"ok": False, "error": str(exc)}
+        return {"ok": True}
+
+    def ftp_delete(self, host: str, port: int, items: list[dict]) -> dict:
+        try:
+            with ps5.PS5Ftp(host, int(port)) as ftp:
+                for item in items or []:
+                    ftp.remove(item["path"], bool(item.get("is_dir")))
+        except (ps5.PS5Error, KeyError) as exc:
+            return {"ok": False, "error": str(exc)}
+        return {"ok": True, "count": len(items or [])}
+
+    def start_ftp_paste(self, host: str, port: int, items: list[dict],
+                        dest_dir: str, mode: str) -> None:
+        self._spawn(self._run_ftp_paste, host, int(port), items or [],
+                    dest_dir, mode)
+
+    def _copy_tree(self, ftp, src: str, is_dir: bool, dest_dir: str) -> None:
+        """Copy one remote entry into ``dest_dir``.
+
+        FTP has no server-side copy, so a file is round-tripped through a local
+        temp file (``upload`` names the remote after the local file). Folders
+        are recreated and their contents copied recursively.
+        """
+        name = src.rstrip("/").rsplit("/", 1)[-1]
+        if not is_dir:
+            tmpdir = Path(tempfile.mkdtemp(prefix="exfat_forge_ftp_"))
+            try:
+                local = tmpdir / name
+                ftp.download(src, local, progress=self._progress,
+                             cancel=self._cancel)
+                ftp.upload(local, dest_dir, progress=self._progress,
+                           cancel=self._cancel)
+            finally:
+                shutil.rmtree(tmpdir, ignore_errors=True)
+            return
+        target = self._ftp_child(dest_dir, name)
+        ftp.makedirs(target)
+        for entry in ftp.listdir(src):
+            self._copy_tree(ftp, self._ftp_child(src, entry.name),
+                            entry.is_dir, target)
+
+    def _run_ftp_paste(self, host: str, port: int, items: list[dict],
+                       dest_dir: str, mode: str) -> None:
+        moved = 0
+        with ps5.PS5Ftp(host, port) as ftp:
+            for item in items:
+                src, is_dir = item["path"], bool(item.get("is_dir"))
+                name = src.rstrip("/").rsplit("/", 1)[-1]
+                dst = self._ftp_child(dest_dir, name)
+                if mode == "cut":
+                    if dst != src:
+                        ftp.rename(src, dst)
+                    self._log(i18n.t("ftp.moved", name=name), "ok")
+                else:
+                    self._copy_tree(ftp, src, is_dir, dest_dir)
+                    self._log(i18n.t("ftp.copied", name=name), "ok")
+                moved += 1
+        self._js("onFtpChanged")
+        self._js("onDone", i18n.t("ftp.paste_done", count=moved))
+
+    def start_ftp_download(self, host: str, port: int, items: list[dict],
+                          local_dir: str) -> None:
+        self._spawn(self._run_ftp_download, host, int(port), items or [],
+                    local_dir)
+
+    def _download_tree(self, ftp, src: str, is_dir: bool, local_dir: Path) -> None:
+        name = src.rstrip("/").rsplit("/", 1)[-1]
+        if not is_dir:
+            ftp.download(src, local_dir / name, progress=self._progress,
+                         cancel=self._cancel)
+            return
+        sub = local_dir / name
+        sub.mkdir(parents=True, exist_ok=True)
+        for entry in ftp.listdir(src):
+            self._download_tree(ftp, self._ftp_child(src, entry.name),
+                                entry.is_dir, sub)
+
+    def _run_ftp_download(self, host: str, port: int, items: list[dict],
+                          local_dir: str) -> None:
+        dest = Path(local_dir)
+        dest.mkdir(parents=True, exist_ok=True)
+        with ps5.PS5Ftp(host, port) as ftp:
+            for item in items:
+                self._download_tree(ftp, item["path"],
+                                    bool(item.get("is_dir")), dest)
+        self._js("onDone", i18n.t("ftp.download_done",
+                                  count=len(items), dest=str(dest)))
 
     # ── payload library ───────────────────────────────────────────
 

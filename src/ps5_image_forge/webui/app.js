@@ -185,19 +185,27 @@ async function toggleMaximize() {
 
 let dialogResolve = null;
 let dialogPreviousFocus = null;
+let dialogIsPrompt = false;
 function closeAppDialog(confirmed) {
   if (!dialogResolve) return;
   const resolve = dialogResolve;
+  const wasPrompt = dialogIsPrompt;
+  const value = $("app-dialog-input").value.trim();
   dialogResolve = null;
+  dialogIsPrompt = false;
   $("app-dialog-backdrop").hidden = true;
+  $("app-dialog-input").hidden = true;
   if (dialogPreviousFocus && dialogPreviousFocus.isConnected)
     dialogPreviousFocus.focus();
   dialogPreviousFocus = null;
-  resolve(Boolean(confirmed));
+  if (wasPrompt) resolve(confirmed ? value : null);
+  else resolve(Boolean(confirmed));
 }
 function confirmInApp(message, options = {}) {
   if (dialogResolve) closeAppDialog(false);
   dialogPreviousFocus = document.activeElement;
+  dialogIsPrompt = false;
+  $("app-dialog-input").hidden = true;
   $("app-dialog-title").textContent = options.title || t("dialog.backport.title");
   $("app-dialog-message").textContent = message;
   $("app-dialog-note").textContent = options.note || t("dialog.backup.note");
@@ -205,6 +213,22 @@ function confirmInApp(message, options = {}) {
   return new Promise(resolve => {
     dialogResolve = resolve;
     requestAnimationFrame(() => $("app-dialog-confirm").focus());
+  });
+}
+function promptInApp(message, defaultValue = "", options = {}) {
+  if (dialogResolve) closeAppDialog(false);
+  dialogPreviousFocus = document.activeElement;
+  dialogIsPrompt = true;
+  const input = $("app-dialog-input");
+  input.value = defaultValue;
+  input.hidden = false;
+  $("app-dialog-title").textContent = options.title || message;
+  $("app-dialog-message").textContent = message;
+  $("app-dialog-note").textContent = options.note || "";
+  $("app-dialog-backdrop").hidden = false;
+  return new Promise(resolve => {
+    dialogResolve = resolve;
+    requestAnimationFrame(() => { input.focus(); input.select(); });
   });
 }
 $("app-dialog-confirm").onclick = () => closeAppDialog(true);
@@ -320,12 +344,12 @@ function onProgress(ev) {
   const now = Date.now();
   if (detail.startsWith("$ ") || progressKey !== onProgress.lastKey ||
       now - (onProgress.lastAt || 0) >= 2500 || (ev.total > 0 && ev.done >= ev.total)) {
-    const progressBox = ev.phase === "upload" ? "ftp-log"
+    const progressBox = (ev.phase === "upload" || ev.phase === "download") ? "ftp-log"
       : ev.phase === "extract" ? "ex-log" : "log";
     log(progressBox, progressLine);
     onProgress.lastKey = progressKey; onProgress.lastAt = now;
   }
-  if (ev.phase === "upload") return onUploadProgress(ev);
+  if (ev.phase === "upload" || ev.phase === "download") return onUploadProgress(ev);
   const bar = document.querySelector("#page-build .bar");
   if (onProgress.lastPhase !== ev.phase) {
     onProgress.lastPhase = ev.phase;
@@ -388,6 +412,10 @@ window.forge = {
   onDone: m => jobEnd("done", m),
   onError: m => jobEnd("error", t("err.prefix") + m),
   onCancelled: () => jobEnd("cancelled", t("phase.cancelled")),
+  onFtpChanged: () => {
+    const page = document.querySelector(".page.on");
+    if (page && page.id === "page-ftp") listFtpDirectory(ftpCurrentDir());
+  },
   onBackportImage: r => {
     const msg = t("bp.done", r);
     log("bp-log", msg, r.failed ? "err" : "ok");
@@ -780,6 +808,8 @@ function demoScan() {
 
 /* ── FTP page ─────────────────────────────────────────── */
 let ftpEntries = [], ftpListedPath = null, ftpListRequest = 0;
+let ftpSelected = null;   // index into ftpEntries, or null
+let ftpClip = null;       // { mode:"cut"|"copy", items:[{path,name,is_dir}] }
 
 function normalizeRemotePath(value) {
   const parts = String(value || "/").replace(/\\/g, "/").split("/");
@@ -816,13 +846,49 @@ function renderFtpEntries() {
     <td><span class="ftp-kind">↰</span>..</td><td class="num">—</td></tr>`;
   const rows = ftpEntries.map((entry, index) => {
     const dir = !!entry.is_dir;
-    const attrs = dir ? ` class="ftp-dir clickable" data-ftp-index="${index}" tabindex="0" role="button" title="${esc(t("ftp.open_dir", { name: entry.name }))}"` : ` class="ftp-file"`;
-    return `<tr${attrs}><td><span class="ftp-kind">${dir ? "▸" : "·"}</span>${esc(entry.name)}</td>
+    const cls = (dir ? "ftp-dir clickable" : "ftp-file clickable")
+      + (index === ftpSelected ? " ftp-sel" : "");
+    const title = dir ? t("ftp.open_dir", { name: entry.name }) : entry.name;
+    return `<tr class="${cls}" data-ftp-index="${index}" tabindex="0" role="button" title="${esc(title)}">
+      <td><span class="ftp-kind">${dir ? "▸" : "·"}</span>${esc(entry.name)}</td>
       <td class="num">${dir ? "—" : human(entry.size)}</td></tr>`;
   }).join("");
   $("ftp-entries").innerHTML = parent + rows;
   $("ftp-empty").style.display = ftpEntries.length || parent ? "none" : "";
   $("ftp-up").disabled = path === "/";
+  updateFtpToolbar();
+}
+function ftpSelectedEntry() {
+  return ftpSelected != null ? ftpEntries[ftpSelected] : null;
+}
+function selectFtpRow(index) {
+  ftpSelected = (index === ftpSelected) ? null : index;
+  document.querySelectorAll("#ftp-entries tr").forEach(tr => {
+    tr.classList.toggle("ftp-sel", +tr.dataset.ftpIndex === ftpSelected);
+  });
+  updateFtpToolbar();
+}
+function clearFtpSelection() { ftpSelected = null; }
+function updateFtpToolbar() {
+  const sel = ftpSelectedEntry();
+  const has = !!sel;
+  $("ftp-rename").disabled = !has;
+  $("ftp-cut").disabled = !has;
+  $("ftp-copy").disabled = !has;
+  $("ftp-delete").disabled = !has;
+  $("ftp-download").disabled = !has;
+  $("ftp-paste").disabled = !ftpClip || !ftpClip.items.length;
+  const clip = $("ftp-clip");
+  if (clip) {
+    clip.textContent = ftpClip && ftpClip.items.length
+      ? t(ftpClip.mode === "cut" ? "ftp.clip_cut" : "ftp.clip_copy",
+          { name: ftpClip.items.map(i => i.name).join(", ") })
+      : "";
+  }
+}
+function ftpCurrentDir() { return normalizeRemotePath(ftpListedPath || "/"); }
+function ftpEntryPath(entry) {
+  return childRemotePath(ftpCurrentDir(), entry.name);
 }
 async function rememberFtpTarget(path) {
   $("ftp-path").value = path;
@@ -846,6 +912,7 @@ async function listFtpDirectory(requestedPath) {
   if (!r.ok) { log("ftp-log", t("err.prefix") + r.error, "err"); return; }
   ftpListedPath = normalizeRemotePath(r.path || path);
   ftpEntries = Array.isArray(r.entries) ? r.entries : [];
+  clearFtpSelection();
   await rememberFtpTarget(ftpListedPath);
   renderFtpEntries();
   setPill("ftp-status", true, ftpListedPath);
@@ -872,18 +939,122 @@ $("ftp-up").onclick = () => listFtpDirectory(parentRemotePath(ftpListedPath || $
 $("ftp-path").onkeydown = ev => { if (ev.key === "Enter") listFtpDirectory(); };
 $("ftp-entries").onclick = ev => {
   const row = ev.target.closest("tr");
-  if (!row || !row.classList.contains("ftp-dir")) return;
-  if (row.dataset.ftpParent) listFtpDirectory(parentRemotePath(ftpListedPath));
-  else {
-    const entry = ftpEntries[+row.dataset.ftpIndex];
-    if (entry && entry.is_dir) listFtpDirectory(childRemotePath(ftpListedPath, entry.name));
-  }
+  if (!row) return;
+  if (row.dataset.ftpParent) { listFtpDirectory(parentRemotePath(ftpListedPath)); return; }
+  selectFtpRow(+row.dataset.ftpIndex);   // single click selects (file or dir)
+};
+$("ftp-entries").ondblclick = ev => {
+  const row = ev.target.closest("tr");
+  if (!row) return;
+  if (row.dataset.ftpParent) { listFtpDirectory(parentRemotePath(ftpListedPath)); return; }
+  const entry = ftpEntries[+row.dataset.ftpIndex];
+  if (entry && entry.is_dir)               // double click opens a folder
+    listFtpDirectory(childRemotePath(ftpListedPath, entry.name));
 };
 $("ftp-entries").onkeydown = ev => {
-  if (ev.key !== "Enter" && ev.key !== " ") return;
-  const row = ev.target.closest("tr.ftp-dir");
-  if (row) { ev.preventDefault(); row.click(); }
+  const row = ev.target.closest("tr");
+  if (!row) return;
+  if (ev.key === "Enter") {
+    ev.preventDefault();
+    if (row.dataset.ftpParent) return listFtpDirectory(parentRemotePath(ftpListedPath));
+    const entry = ftpEntries[+row.dataset.ftpIndex];
+    if (entry && entry.is_dir) listFtpDirectory(childRemotePath(ftpListedPath, entry.name));
+  } else if (ev.key === " ") {
+    ev.preventDefault();
+    if (!row.dataset.ftpParent) selectFtpRow(+row.dataset.ftpIndex);
+  }
 };
+/* ── FTP file management ──────────────────────────────── */
+function ftpHostPort() {
+  return { host: $("ftp-host").value.trim(), port: +$("ftp-port").value };
+}
+async function ftpRelist() { await listFtpDirectory(ftpCurrentDir()); }
+
+$("ftp-mkdir").onclick = async () => {
+  const { host, port } = ftpHostPort();
+  if (!host) { log("ftp-log", t("msg.need_host"), "err"); return; }
+  const name = await promptInApp(t("ftp.mkdir_prompt"), "", { title: t("ftp.mkdir") });
+  if (!name) return;
+  const b = bridge(); if (!b) return;
+  const r = await b.ftp_mkdir(host, port, ftpCurrentDir(), name);
+  if (!r.ok) return log("ftp-log", t("err.prefix") + r.error, "err");
+  log("ftp-log", t("ftp.mkdir_ok", { name }), "ok");
+  await ftpRelist();
+};
+$("ftp-rename").onclick = async () => {
+  const { host, port } = ftpHostPort();
+  const entry = ftpSelectedEntry();
+  if (!host || !entry) return;
+  const name = await promptInApp(t("ftp.rename_prompt", { name: entry.name }),
+    entry.name, { title: t("ftp.rename") });
+  if (!name || name === entry.name) return;
+  const b = bridge(); if (!b) return;
+  const r = await b.ftp_rename(host, port, ftpEntryPath(entry), name);
+  if (!r.ok) return log("ftp-log", t("err.prefix") + r.error, "err");
+  log("ftp-log", t("ftp.rename_ok", { from: entry.name, to: name }), "ok");
+  await ftpRelist();
+};
+function ftpClipboardSet(mode) {
+  const entry = ftpSelectedEntry();
+  if (!entry) return;
+  ftpClip = { mode, items: [{ path: ftpEntryPath(entry), name: entry.name, is_dir: !!entry.is_dir }] };
+  updateFtpToolbar();
+  log("ftp-log", t(mode === "cut" ? "ftp.cut_ok" : "ftp.copy_ok", { name: entry.name }));
+}
+$("ftp-cut").onclick = () => ftpClipboardSet("cut");
+$("ftp-copy").onclick = () => ftpClipboardSet("copy");
+$("ftp-paste").onclick = () => {
+  const { host, port } = ftpHostPort();
+  if (!host || !ftpClip || !ftpClip.items.length) return;
+  const b = bridge(); if (!b) return;
+  S.t0 = Date.now();
+  startJob("ftp-log");
+  $("ftp-upload").disabled = true; $("ftp-abort").disabled = false;
+  b.start_ftp_paste(host, port, ftpClip.items, ftpCurrentDir(), ftpClip.mode);
+  if (ftpClip.mode === "cut") ftpClip = null;   // a move consumes the clipboard
+  updateFtpToolbar();
+};
+$("ftp-download").onclick = async () => {
+  const { host, port } = ftpHostPort();
+  const entry = ftpSelectedEntry();
+  if (!host || !entry) return;
+  const b = bridge(); if (!b) return;
+  const dest = await b.pick_folder();
+  if (!dest) return;
+  S.t0 = Date.now();
+  startJob("ftp-log");
+  $("ftp-upload").disabled = true; $("ftp-abort").disabled = false;
+  b.start_ftp_download(host, port,
+    [{ path: ftpEntryPath(entry), name: entry.name, is_dir: !!entry.is_dir }], dest);
+};
+$("ftp-delete").onclick = async () => {
+  const { host, port } = ftpHostPort();
+  const entry = ftpSelectedEntry();
+  if (!host || !entry) return;
+  if (!await confirmInApp(t("ftp.delete_confirm", { name: entry.name }),
+      { title: t("ftp.delete"), note: t("ftp.delete_note") })) return;
+  const b = bridge(); if (!b) return;
+  const r = await b.ftp_delete(host, port,
+    [{ path: ftpEntryPath(entry), is_dir: !!entry.is_dir }]);
+  if (!r.ok) return log("ftp-log", t("err.prefix") + r.error, "err");
+  log("ftp-log", t("ftp.delete_ok", { name: entry.name }), "ok");
+  await ftpRelist();
+};
+// keyboard: Delete / F2 / Ctrl+X / Ctrl+C / Ctrl+V while browsing the list
+document.addEventListener("keydown", ev => {
+  if (dialogResolve) return;
+  const page = document.querySelector(".page.on");
+  if (!page || page.id !== "page-ftp") return;
+  const tag = (ev.target.tagName || "").toLowerCase();
+  if (tag === "input" || tag === "textarea" || tag === "select") return;
+  const fire = id => { const el = $(id); if (!el.disabled) { ev.preventDefault(); el.click(); } };
+  if (ev.key === "Delete") fire("ftp-delete");
+  else if (ev.key === "F2") fire("ftp-rename");
+  else if ((ev.ctrlKey || ev.metaKey) && ev.key.toLowerCase() === "x") fire("ftp-cut");
+  else if ((ev.ctrlKey || ev.metaKey) && ev.key.toLowerCase() === "c") fire("ftp-copy");
+  else if ((ev.ctrlKey || ev.metaKey) && ev.key.toLowerCase() === "v") fire("ftp-paste");
+});
+
 function onUploadProgress(ev) {
   const frac = ev.total ? ev.done / ev.total : 0;
   $("ftp-pct").textContent = (frac * 100).toFixed(1) + "%";

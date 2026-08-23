@@ -180,3 +180,89 @@ def test_ftp_list_changes_directory_before_argumentless_mlsd() -> None:
     assert fake.calls[:3] == [("cwd", "/mnt"), ("pwd",), ("mlsd", ())]
     assert [(e.name, e.is_dir, e.size) for e in entries] == [
         ("games", True, 0), ("readme.txt", False, 12)]
+
+
+def test_ftp_rename_issues_rnfr_rnto() -> None:
+    class FakeFtp:
+        def __init__(self) -> None:
+            self.renamed = None
+
+        def rename(self, src: str, dst: str) -> None:
+            self.renamed = (src, dst)
+
+    fake = FakeFtp()
+    client = ps5.PS5Ftp("127.0.0.1", 2121)
+    client._ftp = fake  # type: ignore[assignment]
+    client.rename("/games/old.bin", "/games/new.bin")
+    assert fake.renamed == ("/games/old.bin", "/games/new.bin")
+
+
+class _TreeFtp:
+    """A tiny in-memory FTP that models a directory tree for remove/download."""
+
+    def __init__(self, tree: dict) -> None:
+        self.tree = tree           # dir -> list[(name, is_dir, bytes|None)]
+        self.current = "/"
+        self.deleted: list[str] = []
+        self.rmdirs: list[str] = []
+
+    def cwd(self, path: str) -> None:
+        self.current = path
+
+    def pwd(self) -> str:
+        return self.current
+
+    def mlsd(self, *args):
+        for name, is_dir, _ in self.tree.get(self.current, []):
+            yield (name, {"type": "dir" if is_dir else "file", "size": "0"})
+
+    def delete(self, path: str) -> None:
+        self.deleted.append(path)
+
+    def rmd(self, path: str) -> None:
+        self.rmdirs.append(path)
+
+    def size(self, path: str):
+        for members in self.tree.values():
+            for name, is_dir, data in members:
+                if not is_dir and path.endswith("/" + name):
+                    return len(data or b"")
+        return 0
+
+    def retrbinary(self, cmd, callback, blocksize=8192):
+        path = cmd.split(" ", 1)[1]
+        for members in self.tree.values():
+            for name, is_dir, data in members:
+                if not is_dir and path.endswith("/" + name):
+                    callback(data or b"")
+                    return
+        raise KeyError(path)
+
+
+def test_ftp_remove_recurses_and_deletes_dir_last() -> None:
+    tree = {
+        "/games": [("app0", True, None), ("eboot.bin", False, b"x")],
+        "/games/app0": [("data.bin", False, b"y")],
+    }
+    fake = _TreeFtp(tree)
+    client = ps5.PS5Ftp("127.0.0.1", 2121)
+    client._ftp = fake  # type: ignore[assignment]
+
+    client.remove("/games", is_dir=True)
+
+    assert set(fake.deleted) == {"/games/app0/data.bin", "/games/eboot.bin"}
+    # inner directory removed before its parent
+    assert fake.rmdirs == ["/games/app0", "/games"]
+
+
+def test_ftp_download_writes_bytes_and_reports_progress(tmp_path: Path) -> None:
+    payload = b"PS5 game bytes" * 100
+    fake = _TreeFtp({"/games": [("rom.bin", False, payload)]})
+    client = ps5.PS5Ftp("127.0.0.1", 2121)
+    client._ftp = fake  # type: ignore[assignment]
+
+    events: list = []
+    local = client.download("/games/rom.bin", tmp_path / "rom.bin",
+                            progress=events.append)
+    assert local.read_bytes() == payload
+    assert events and events[-1].done == len(payload)

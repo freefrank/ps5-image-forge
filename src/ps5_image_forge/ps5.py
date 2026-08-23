@@ -219,6 +219,60 @@ class PS5Ftp:
         except ftplib.all_errors as exc:
             raise PS5Error(f"delete failed: {exc}") from exc
 
+    def rename(self, src: str, dst: str) -> None:
+        """Move/rename ``src`` to ``dst`` on the server (RNFR/RNTO)."""
+        try:
+            self.ftp.rename(src, dst)
+        except ftplib.all_errors as exc:
+            raise PS5Error(f"rename failed: {exc}") from exc
+
+    def remove(self, remote_path: str, is_dir: bool = False) -> None:
+        """Delete a file, or a directory and everything inside it."""
+        if not is_dir:
+            return self.delete(remote_path)
+        base = remote_path.rstrip("/")
+        for entry in self.listdir(base):
+            self.remove(f"{base}/{entry.name}", entry.is_dir)
+        parent = base.rsplit("/", 1)[0] or "/"
+        self.cwd(parent)                       # never RMD the current directory
+        try:
+            self.ftp.rmd(base)
+        except ftplib.all_errors as exc:
+            raise PS5Error(f"remove directory failed: {exc}") from exc
+
+    def download(self, remote_path: str, local: Path, *,
+                 progress: ProgressFn | None = None,
+                 cancel: CancelToken | None = None,
+                 chunk: int = 256 * 1024) -> Path:
+        """Fetch one remote file to ``local``; returns the local path."""
+        local = Path(local)
+        local.parent.mkdir(parents=True, exist_ok=True)
+        name = remote_path.rstrip("/").rsplit("/", 1)[-1]
+        total = 0
+        try:
+            total = self.ftp.size(remote_path) or 0
+        except ftplib.all_errors:
+            total = 0
+        got = 0
+        try:
+            with local.open("wb") as fh:
+                def _block(data: bytes) -> None:
+                    nonlocal got
+                    if cancel:
+                        cancel.raise_if_cancelled()
+                    fh.write(data)
+                    got += len(data)
+                    if progress:
+                        progress(ProgressEvent("download", got, total, name))
+                self.ftp.retrbinary(f"RETR {remote_path}", _block,
+                                    blocksize=chunk)
+        except ftplib.all_errors as exc:
+            local.unlink(missing_ok=True)
+            raise PS5Error(f"download of {name} failed: {exc}") from exc
+        if progress:
+            progress(ProgressEvent("download", total or got, total or got, name))
+        return local
+
 
 # ── kernel log ────────────────────────────────────────────────────
 

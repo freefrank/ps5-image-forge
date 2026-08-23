@@ -355,6 +355,21 @@ def test_ps5_list_failure_returns_error() -> None:
     assert res["ok"] is False and "FTP connect failed" in res["error"]
 
 
+def test_ftp_mkdir_and_rename_reject_bad_names_before_connecting() -> None:
+    b = RecordingBridge()
+    # invalid names are refused up front, so no FTP connection is attempted
+    for bad in ("", "  ", "a/b", "..", "/"):
+        assert b.ftp_mkdir("127.0.0.1", 1, "/data", bad)["ok"] is False
+        assert b.ftp_rename("127.0.0.1", 1, "/data/x.bin", bad)["ok"] is False
+
+
+def test_ftp_child_join() -> None:
+    b = RecordingBridge()
+    assert b._ftp_child("/data/etaHEN/games", "PPSA01.bin") == \
+        "/data/etaHEN/games/PPSA01.bin"
+    assert b._ftp_child("/", "app0") == "/app0"
+
+
 def test_ps5_send_payload_failure_returns_error(tmp_path: Path) -> None:
     bad = tmp_path / "x.elf"
     bad.write_bytes(b"not an elf at all")

@@ -298,6 +298,10 @@ tbody tr.open-row td:first-child { box-shadow: inset 2px 0 0 var(--ok); }
 .ftp-dir:focus-visible { outline: 1px solid var(--cyan); outline-offset: -2px; }
 .ftp-kind { display: inline-block; width: 20px; color: var(--cyan); text-align: center; }
 .ftp-file .ftp-kind { color: var(--text-dim); }
+#ftp-entries tr.ftp-sel { background: rgba(0,229,255,.16);
+  box-shadow: inset 2px 0 0 var(--cyan); }
+.ftp-toolbar { flex-wrap: wrap; gap: 6px; margin: 0 0 8px; }
+.ftp-toolbar button { padding: 4px 11px; font-size: 10.5px; }
 #page-ftp .table-scroll table { min-width: 0; }
 .badge { display: inline-block; padding: 1px 7px; font-size: 9px; letter-spacing: 1px;
   border: 1px solid currentColor; }

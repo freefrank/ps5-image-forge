@@ -338,11 +338,21 @@
         </div>
         <div class="panel">
           <span class="tag">REMOTE</span>
+          <div class="row ftp-toolbar">
+            <button id="ftp-mkdir" data-i18n="ftp.mkdir">NEW FOLDER</button>
+            <button id="ftp-rename" disabled data-i18n="ftp.rename">RENAME</button>
+            <button id="ftp-cut" disabled data-i18n="ftp.cut">CUT</button>
+            <button id="ftp-copy" disabled data-i18n="ftp.copy">COPY</button>
+            <button id="ftp-paste" disabled data-i18n="ftp.paste">PASTE</button>
+            <button id="ftp-download" disabled data-i18n="ftp.download">DOWNLOAD</button>
+            <button id="ftp-delete" class="danger" disabled data-i18n="ftp.delete">DELETE</button>
+          </div>
           <div class="table-scroll" style="max-height:230px">
             <table><thead><tr><th data-i18n="col.name">NAME</th><th class="num" data-i18n="col.size">SIZE</th></tr></thead>
             <tbody id="ftp-entries" aria-live="polite"></tbody></table>
             <div class="empty" id="ftp-empty" data-i18n="empty.remote">Not listed</div>
           </div>
+          <div class="hint" id="ftp-clip" style="margin-top:6px"></div>
         </div>
       </div>
       <div class="panel">
@@ -683,6 +693,8 @@
     <span class="tag" data-i18n="dialog.tag">CONFIRM ACTION</span>
     <h2 id="app-dialog-title" data-i18n="dialog.backport.title">CONFIRM AUTO BACKPORT</h2>
     <p id="app-dialog-message" class="dialog-message"></p>
+    <input type="text" id="app-dialog-input" spellcheck="false" hidden
+           style="width:100%;margin:2px 0 4px">
     <div class="dialog-backup-note">
       <span class="dialog-shield">◇</span>
       <span id="app-dialog-note" data-i18n="dialog.backup.note">The original file is backed up and verified before replacement.</span>
