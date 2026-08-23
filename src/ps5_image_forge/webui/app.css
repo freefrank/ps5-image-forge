@@ -476,7 +476,21 @@ details.advanced > summary:hover,
 .advanced-block:not([open]) > summary { margin-bottom: 0; }
 
 #page-payload.on { display: flex; flex-direction: column; }
-#page-payload .payload-send-panel { order: 1; }
+/* Drop the scroll area's top padding while the Payload page is active so the
+   pinned Send bar sits flush with the top edge — otherwise content scrolling
+   up would peek through the padding gap above it. */
+#pages:has(#page-payload.on) { padding-top: 0; }
+#page-payload .payload-send-panel {
+  order: 1;
+  /* Pin Send to the top of the scroll area so it stays reachable while
+     browsing the (potentially long) payload and catalog lists below. An
+     opaque background (and no bevelled corners) is required — the default
+     panel colour is translucent and would let scrolled content show through. */
+  position: sticky; top: 0; z-index: 5;
+  background: var(--panel-solid);
+  clip-path: none;
+  box-shadow: 0 5px 14px rgba(0, 8, 16, .45);
+}
 #page-payload .payload-local-panel { order: 2; }
 #page-payload .payload-catalog-panel { order: 3; }
 #page-payload .payload-folder-panel { order: 4; }
