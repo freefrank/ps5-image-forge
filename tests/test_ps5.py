@@ -185,16 +185,34 @@ def test_ftp_list_changes_directory_before_argumentless_mlsd() -> None:
 def test_ftp_rename_issues_rnfr_rnto() -> None:
     class FakeFtp:
         def __init__(self) -> None:
-            self.renamed = None
+            self.cmds: list[str] = []
 
-        def rename(self, src: str, dst: str) -> None:
-            self.renamed = (src, dst)
+        def sendcmd(self, cmd: str) -> str:
+            self.cmds.append(cmd)
+            return "350 ready" if cmd.startswith("RNFR") else "250 renamed"
 
     fake = FakeFtp()
     client = ps5.PS5Ftp("127.0.0.1", 2121)
     client._ftp = fake  # type: ignore[assignment]
     client.rename("/games/old.bin", "/games/new.bin")
-    assert fake.renamed == ("/games/old.bin", "/games/new.bin")
+    assert fake.cmds == ["RNFR /games/old.bin", "RNTO /games/new.bin"]
+
+
+def test_ftp_delete_accepts_226_reply() -> None:
+    """PS5 ftpsrv answers DELE with 226, which must count as success."""
+    class FakeFtp:
+        def __init__(self) -> None:
+            self.cmds: list[str] = []
+
+        def sendcmd(self, cmd: str) -> str:
+            self.cmds.append(cmd)
+            return "226 File deleted"
+
+    fake = FakeFtp()
+    client = ps5.PS5Ftp("127.0.0.1", 2121)
+    client._ftp = fake  # type: ignore[assignment]
+    client.delete("/data/game.bin")            # must not raise
+    assert fake.cmds == ["DELE /data/game.bin"]
 
 
 class _TreeFtp:
@@ -216,11 +234,13 @@ class _TreeFtp:
         for name, is_dir, _ in self.tree.get(self.current, []):
             yield (name, {"type": "dir" if is_dir else "file", "size": "0"})
 
-    def delete(self, path: str) -> None:
-        self.deleted.append(path)
-
-    def rmd(self, path: str) -> None:
-        self.rmdirs.append(path)
+    def sendcmd(self, cmd: str) -> str:
+        verb, path = cmd.split(" ", 1)
+        if verb == "DELE":
+            self.deleted.append(path)
+        elif verb == "RMD":
+            self.rmdirs.append(path)
+        return "226 done"
 
     def size(self, path: str):
         for members in self.tree.values():
@@ -253,6 +273,83 @@ def test_ftp_remove_recurses_and_deletes_dir_last() -> None:
     assert set(fake.deleted) == {"/games/app0/data.bin", "/games/eboot.bin"}
     # inner directory removed before its parent
     assert fake.rmdirs == ["/games/app0", "/games"]
+
+
+def test_ftp_upload_resumes_from_remote_size(tmp_path: Path) -> None:
+    class FakeFtp:
+        def __init__(self, existing: int) -> None:
+            self.existing = existing
+            self.rest = None
+            self.stored = b""
+
+        def size(self, path: str) -> int:
+            return self.existing
+
+        def mkd(self, path: str) -> None:
+            pass
+
+        def storbinary(self, cmd, fp, blocksize=8192, callback=None, rest=None):
+            self.rest = rest
+            self.stored = fp.read()      # reads from fp's current position
+
+    data = b"A" * 1000
+    local = tmp_path / "rom.bin"
+    local.write_bytes(data)
+    fake = FakeFtp(existing=400)
+    client = ps5.PS5Ftp("127.0.0.1", 2121)
+    client._ftp = fake  # type: ignore[assignment]
+
+    client.upload(local, "/data")
+    assert fake.rest == 400
+    assert fake.stored == data[400:]     # only the missing tail is sent
+
+
+def test_ftp_upload_skips_when_already_complete(tmp_path: Path) -> None:
+    class FakeFtp:
+        def __init__(self) -> None:
+            self.stored = False
+
+        def size(self, path: str) -> int:
+            return 1000
+
+        def mkd(self, path: str) -> None:
+            pass
+
+        def storbinary(self, *a, **k) -> None:
+            self.stored = True
+
+    local = tmp_path / "rom.bin"
+    local.write_bytes(b"A" * 1000)
+    fake = FakeFtp()
+    client = ps5.PS5Ftp("127.0.0.1", 2121)
+    client._ftp = fake  # type: ignore[assignment]
+    client.upload(local, "/data")
+    assert fake.stored is False          # nothing re-sent
+
+
+def test_ftp_download_resumes_from_partial_local(tmp_path: Path) -> None:
+    remaining = b"B" * 600
+
+    class FakeFtp:
+        def __init__(self) -> None:
+            self.rest = None
+
+        def size(self, path: str) -> int:
+            return 1000
+
+        def retrbinary(self, cmd, callback, blocksize=8192, rest=None):
+            self.rest = rest
+            callback(remaining)
+
+    local = tmp_path / "rom.bin"
+    local.write_bytes(b"A" * 400)        # a partial download
+    fake = FakeFtp()
+    client = ps5.PS5Ftp("127.0.0.1", 2121)
+    client._ftp = fake  # type: ignore[assignment]
+
+    client.download("/games/rom.bin", local)
+    assert fake.rest == 400
+    assert local.read_bytes() == b"A" * 400 + remaining   # appended, not truncated
 
 
 def test_ftp_download_writes_bytes_and_reports_progress(tmp_path: Path) -> None:

@@ -96,6 +96,10 @@ class PS5Ftp:
                 ftp.sendcmd("OPTS UTF8 ON")
             except ftplib.all_errors:
                 pass          # older servers reject it; harmless
+            try:
+                ftp.voidcmd("TYPE I")   # binary — also makes SIZE reliable
+            except ftplib.all_errors:
+                pass
             ftp.set_pasv(True)
         except ftplib.all_errors as exc:
             raise PS5Error(f"FTP connect failed ({self.host}:{self.port}): "
@@ -185,15 +189,38 @@ class PS5Ftp:
             except ftplib.all_errors:
                 pass
 
+    def _remote_size(self, remote_path: str) -> int:
+        try:
+            return self.ftp.size(remote_path) or 0
+        except ftplib.all_errors:
+            return 0
+
     def upload(self, local: Path, remote_dir: str, *,
                progress: ProgressFn | None = None,
                cancel: CancelToken | None = None,
-               chunk: int = 256 * 1024) -> str:
-        """Upload one file, reporting bytes sent; returns the remote path."""
+               chunk: int = 256 * 1024, resume: bool = True) -> str:
+        """Upload one file, reporting bytes sent; returns the remote path.
+
+        With ``resume`` (default), an interrupted upload continues from what the
+        server already has via ``REST``: a partial remote file resumes from its
+        current size, and an already-complete one is skipped.
+        """
+        local = Path(local)
         total = local.stat().st_size
         self.makedirs(remote_dir)
         remote_path = f"{remote_dir.rstrip('/')}/{local.name}"
-        sent = 0
+
+        offset = 0
+        if resume:
+            existing = self._remote_size(remote_path)
+            if existing and existing >= total:
+                if progress:
+                    progress(ProgressEvent("upload", total, total, local.name))
+                return remote_path                 # already fully uploaded
+            if 0 < existing < total:
+                offset = existing                  # resume from here
+
+        sent = offset
 
         def _block(data: bytes) -> None:
             nonlocal sent
@@ -205,26 +232,48 @@ class PS5Ftp:
 
         try:
             with local.open("rb") as fh:
-                self.ftp.storbinary(f"STOR {remote_path}", fh,
-                                    blocksize=chunk, callback=_block)
+                if offset:
+                    fh.seek(offset)
+                    self.ftp.storbinary(f"STOR {remote_path}", fh,
+                                        blocksize=chunk, callback=_block,
+                                        rest=offset)
+                else:
+                    self.ftp.storbinary(f"STOR {remote_path}", fh,
+                                        blocksize=chunk, callback=_block)
         except ftplib.all_errors as exc:
             raise PS5Error(f"upload of {local.name} failed: {exc}") from exc
         if progress:
             progress(ProgressEvent("upload", total, total, local.name))
         return remote_path
 
-    def delete(self, remote_path: str) -> None:
+    def _cmd_ok(self, command: str) -> str:
+        """Send ``command`` and accept any 2xx reply.
+
+        PS5 ftpsrv answers DELE/RMD/RNTO with ``226``/``200`` rather than the
+        ``250`` that ftplib's ``delete``/``rmd`` helpers demand, so those raised
+        a false "failed" error even though the operation succeeded.
+        """
+        verb = command.split(" ", 1)[0]
         try:
-            self.ftp.delete(remote_path)
+            resp = self.ftp.sendcmd(command)
         except ftplib.all_errors as exc:
-            raise PS5Error(f"delete failed: {exc}") from exc
+            raise PS5Error(f"{verb} failed: {exc}") from exc
+        if not resp.startswith("2"):
+            raise PS5Error(f"{verb} failed: {resp}")
+        return resp
+
+    def delete(self, remote_path: str) -> None:
+        self._cmd_ok(f"DELE {remote_path}")
 
     def rename(self, src: str, dst: str) -> None:
         """Move/rename ``src`` to ``dst`` on the server (RNFR/RNTO)."""
         try:
-            self.ftp.rename(src, dst)
+            resp = self.ftp.sendcmd(f"RNFR {src}")
         except ftplib.all_errors as exc:
             raise PS5Error(f"rename failed: {exc}") from exc
+        if not resp.startswith("3"):
+            raise PS5Error(f"rename failed: {resp}")
+        self._cmd_ok(f"RNTO {dst}")
 
     def remove(self, remote_path: str, is_dir: bool = False) -> None:
         """Delete a file, or a directory and everything inside it."""
@@ -235,27 +284,36 @@ class PS5Ftp:
             self.remove(f"{base}/{entry.name}", entry.is_dir)
         parent = base.rsplit("/", 1)[0] or "/"
         self.cwd(parent)                       # never RMD the current directory
-        try:
-            self.ftp.rmd(base)
-        except ftplib.all_errors as exc:
-            raise PS5Error(f"remove directory failed: {exc}") from exc
+        self._cmd_ok(f"RMD {base}")
 
     def download(self, remote_path: str, local: Path, *,
                  progress: ProgressFn | None = None,
                  cancel: CancelToken | None = None,
-                 chunk: int = 256 * 1024) -> Path:
-        """Fetch one remote file to ``local``; returns the local path."""
+                 chunk: int = 256 * 1024, resume: bool = True) -> Path:
+        """Fetch one remote file to ``local``; returns the local path.
+
+        With ``resume`` (default), a partially downloaded local file continues
+        from where it stopped via ``REST``; a complete one is left untouched.
+        On failure the partial file is kept so a later retry can resume it.
+        """
         local = Path(local)
         local.parent.mkdir(parents=True, exist_ok=True)
         name = remote_path.rstrip("/").rsplit("/", 1)[-1]
-        total = 0
+        total = self._remote_size(remote_path)
+
+        offset = 0
+        if resume and local.exists():
+            have = local.stat().st_size
+            if total and have >= total:
+                if progress:
+                    progress(ProgressEvent("download", total, total, name))
+                return local                       # already fully downloaded
+            if 0 < have < (total or have + 1):
+                offset = have                      # resume from here
+
+        got = offset
         try:
-            total = self.ftp.size(remote_path) or 0
-        except ftplib.all_errors:
-            total = 0
-        got = 0
-        try:
-            with local.open("wb") as fh:
+            with local.open("ab" if offset else "wb") as fh:
                 def _block(data: bytes) -> None:
                     nonlocal got
                     if cancel:
@@ -264,10 +322,14 @@ class PS5Ftp:
                     got += len(data)
                     if progress:
                         progress(ProgressEvent("download", got, total, name))
-                self.ftp.retrbinary(f"RETR {remote_path}", _block,
-                                    blocksize=chunk)
+                if offset:
+                    self.ftp.retrbinary(f"RETR {remote_path}", _block,
+                                        blocksize=chunk, rest=offset)
+                else:
+                    self.ftp.retrbinary(f"RETR {remote_path}", _block,
+                                        blocksize=chunk)
         except ftplib.all_errors as exc:
-            local.unlink(missing_ok=True)
+            # keep the partial file — a retry resumes from here
             raise PS5Error(f"download of {name} failed: {exc}") from exc
         if progress:
             progress(ProgressEvent("download", total or got, total or got, name))
