@@ -94,30 +94,46 @@ function esc(s) {
   return String(s == null ? "" : s).replace(/[&<>"]/g,
     c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 }
-function appendAppLog(line, cls) {
+// Progress lines are "live": each update rewrites the same trailing row in
+// place instead of appending a new one, so a percentage counter doesn't spam
+// the console. `liveLog` remembers that row per box; a normal (non-live) line
+// clears it so the finished value is frozen and later lines append after it.
+// `liveKey` (a stream id, e.g. the progress phase) makes a line "live": each
+// update with the same key rewrites the same trailing row in place instead of
+// appending, so a percentage counter doesn't spam the console. A different key
+// or a normal line starts a fresh row, freezing the previous value.
+function _emitLine(el, text, cls, liveKey, cap) {
+  const stick = isNearBottom(el);          // only follow if already at the bottom
+  const last = el.lastChild;
+  if (liveKey && last && last.dataset && last.dataset.live === liveKey) {
+    last.textContent = text;
+  } else {
+    const div = document.createElement("div");
+    div.className = "ln" + (liveKey ? " live" : "") + (cls ? " " + cls : "");
+    if (liveKey) div.dataset.live = liveKey;
+    div.textContent = text;
+    el.appendChild(div);
+  }
+  while (el.childNodes.length > cap) el.removeChild(el.firstChild);
+  if (stick) el.scrollTop = el.scrollHeight;
+}
+function appendAppLog(line, cls, liveKey) {
   const box = $("app-log-content");
   if (!box || line == null || line === "") return;
   const stamp = new Date().toLocaleTimeString([], { hour12: false });
   const text = `[${stamp}] ${String(line)}`;
-  const div = document.createElement("div");
-  div.className = "ln" + (cls ? " " + cls : "");
-  div.textContent = text;
-  box.appendChild(div);
-  while (box.childNodes.length > 2500) box.removeChild(box.firstChild);
-  box.scrollTop = box.scrollHeight;
+  _emitLine(box, text, cls, liveKey, 2500);
   const last = $("app-log-last");
   last.textContent = text;
   last.className = "app-log-last" + (cls ? " " + cls : "");
 }
-function log(box, line, cls) {
+function isNearBottom(el, slack = 24) {
+  return el.scrollHeight - el.scrollTop - el.clientHeight < slack;
+}
+function log(box, line, cls, liveKey) {
   const el = typeof box === "string" ? $(box) : box;
-  const div = document.createElement("div");
-  div.className = "ln" + (cls ? " " + cls : "");
-  div.textContent = line;
-  el.appendChild(div);
-  el.scrollTop = el.scrollHeight;
-  while (el.childNodes.length > 600) el.removeChild(el.firstChild);
-  if (el.id !== "app-log-content") appendAppLog(line, cls);
+  if (el) _emitLine(el, line, cls, liveKey, 600);   // per-page consoles are optional
+  if (!el || el.id !== "app-log-content") appendAppLog(line, cls, liveKey);
 }
 function chip(id, key, initial) {
   const el = $(id);
@@ -340,14 +356,23 @@ function onProgress(ev) {
   const detail = String(ev.detail || "");
   const pct = ev.total > 0 ? ` ${(100 * ev.done / ev.total).toFixed(1)}%` : "";
   const progressLine = `${t("phase." + ev.phase)}${pct}${detail ? " · " + detail : ""}`;
-  const progressKey = `${ev.phase}|${detail}`;
   const now = Date.now();
-  if (detail.startsWith("$ ") || progressKey !== onProgress.lastKey ||
-      now - (onProgress.lastAt || 0) >= 2500 || (ev.total > 0 && ev.done >= ev.total)) {
-    const progressBox = (ev.phase === "upload" || ev.phase === "download") ? "ftp-log"
-      : ev.phase === "extract" ? "ex-log" : "log";
-    log(progressBox, progressLine);
-    onProgress.lastKey = progressKey; onProgress.lastAt = now;
+  const progressBox = (ev.phase === "upload" || ev.phase === "download") ? "ftp-log"
+    : ev.phase === "extract" ? "ex-log" : "log";
+  if (ev.total > 0) {
+    // percentage line: rewrite one row in place, lightly throttled + on finish
+    const done = ev.done >= ev.total;
+    if (done || now - (onProgress.lastLiveAt || 0) >= 120) {
+      log(progressBox, progressLine, "", `progress:${ev.phase}`);
+      onProgress.lastLiveAt = now;
+    }
+  } else {
+    const progressKey = `${ev.phase}|${detail}`;
+    if (detail.startsWith("$ ") || progressKey !== onProgress.lastKey ||
+        now - (onProgress.lastAt || 0) >= 2500) {
+      log(progressBox, progressLine);
+      onProgress.lastKey = progressKey; onProgress.lastAt = now;
+    }
   }
   if (ev.phase === "upload" || ev.phase === "download") return onUploadProgress(ev);
   const bar = document.querySelector("#page-build .bar");
@@ -364,7 +389,7 @@ function onProgress(ev) {
     const frac = ev.done / ev.total;
     $("pct").textContent = (frac * 100).toFixed(1) + "%";
     $("fill").style.width = (frac * 100) + "%";
-    bar.classList.remove("idle");
+    bar.classList.toggle("idle", frac >= 1);   // freeze the stripes at 100%
     const el = (Date.now() - S.t0) / 1000;
     const sp = el > 0 ? ev.done / el : 0;
     if (["write", "verify", "extract"].includes(ev.phase) && sp > 0) {
@@ -382,6 +407,8 @@ function jobEnd(kind, msg) {
   S.running = false;
   document.querySelector("#page-build .bar").classList.remove("indeterminate");
   document.querySelector("#page-build .bar").classList.add("idle");
+  const ftpBar = document.querySelector("#page-ftp .bar");
+  if (ftpBar) { ftpBar.classList.remove("indeterminate"); ftpBar.classList.add("idle"); }
   setPhase(kind);
   if (kind === "done") { $("pct").textContent = "100.0%"; $("fill").style.width = "100%"; }
   $("btn-run").disabled = false; $("btn-abort").disabled = true;
@@ -551,7 +578,8 @@ $("source").onchange = () => describeSource($("source").value.trim());
 function startJob(logBox) {
   S.running = true; S.t0 = Date.now();
   onProgress.lastPhase = null;
-  $(logBox).innerHTML = "";
+  const lb = $(logBox);
+  if (lb) lb.innerHTML = "";
   $("pct").textContent = "0.0%"; $("fill").style.width = "0%";
   $("stats").textContent = "";
 }
@@ -810,6 +838,7 @@ function demoScan() {
 let ftpEntries = [], ftpListedPath = null, ftpListRequest = 0;
 let ftpSelected = null;   // index into ftpEntries, or null
 let ftpClip = null;       // { mode:"cut"|"copy", items:[{path,name,is_dir}] }
+let ftpHistory = [], ftpHistIdx = -1;   // visited paths for Back/Forward
 
 function normalizeRemotePath(value) {
   const parts = String(value || "/").replace(/\\/g, "/").split("/");
@@ -861,23 +890,26 @@ function renderFtpEntries() {
 function ftpSelectedEntry() {
   return ftpSelected != null ? ftpEntries[ftpSelected] : null;
 }
-function selectFtpRow(index) {
-  ftpSelected = (index === ftpSelected) ? null : index;
+function paintFtpSelection() {
   document.querySelectorAll("#ftp-entries tr").forEach(tr => {
     tr.classList.toggle("ftp-sel", +tr.dataset.ftpIndex === ftpSelected);
   });
   updateFtpToolbar();
 }
+function selectFtpRow(index) {          // toggle (single click)
+  ftpSelected = (index === ftpSelected) ? null : index;
+  paintFtpSelection();
+}
+function setFtpSelection(index) {       // force-select (right click)
+  ftpSelected = index;
+  paintFtpSelection();
+}
 function clearFtpSelection() { ftpSelected = null; }
 function updateFtpToolbar() {
-  const sel = ftpSelectedEntry();
-  const has = !!sel;
-  $("ftp-rename").disabled = !has;
-  $("ftp-cut").disabled = !has;
-  $("ftp-copy").disabled = !has;
-  $("ftp-delete").disabled = !has;
-  $("ftp-download").disabled = !has;
-  $("ftp-paste").disabled = !ftpClip || !ftpClip.items.length;
+  const path = normalizeRemotePath(ftpListedPath || "/");
+  $("ftp-back").disabled = ftpHistIdx <= 0;
+  $("ftp-forward").disabled = ftpHistIdx >= ftpHistory.length - 1;
+  $("ftp-nav-up").disabled = path === "/" || ftpListedPath == null;
   const clip = $("ftp-clip");
   if (clip) {
     clip.textContent = ftpClip && ftpClip.items.length
@@ -898,7 +930,7 @@ async function rememberFtpTarget(path) {
     try { await b.save_settings({ ps5_ftp_path: path }); } catch (e) {}
   }
 }
-async function listFtpDirectory(requestedPath) {
+async function listFtpDirectory(requestedPath, options = {}) {
   const host = $("ftp-host").value.trim();
   if (!host) { log("ftp-log", t("msg.need_host"), "err"); return; }
   const path = normalizeRemotePath(requestedPath || $("ftp-path").value);
@@ -913,6 +945,11 @@ async function listFtpDirectory(requestedPath) {
   ftpListedPath = normalizeRemotePath(r.path || path);
   ftpEntries = Array.isArray(r.entries) ? r.entries : [];
   clearFtpSelection();
+  if (options.record !== false && ftpHistory[ftpHistIdx] !== ftpListedPath) {
+    ftpHistory = ftpHistory.slice(0, ftpHistIdx + 1);
+    ftpHistory.push(ftpListedPath);
+    ftpHistIdx = ftpHistory.length - 1;
+  }
   await rememberFtpTarget(ftpListedPath);
   renderFtpEntries();
   setPill("ftp-status", true, ftpListedPath);
@@ -964,13 +1001,28 @@ $("ftp-entries").onkeydown = ev => {
     if (!row.dataset.ftpParent) selectFtpRow(+row.dataset.ftpIndex);
   }
 };
-/* ── FTP file management ──────────────────────────────── */
+/* ── FTP file management (right-click) + navigation toolbar ── */
 function ftpHostPort() {
   return { host: $("ftp-host").value.trim(), port: +$("ftp-port").value };
 }
-async function ftpRelist() { await listFtpDirectory(ftpCurrentDir()); }
+async function ftpRelist() { await listFtpDirectory(ftpCurrentDir(), { record: false }); }
 
-$("ftp-mkdir").onclick = async () => {
+// navigation toolbar
+$("ftp-back").onclick = () => {
+  if (ftpHistIdx <= 0) return;
+  ftpHistIdx--;
+  listFtpDirectory(ftpHistory[ftpHistIdx], { record: false });
+};
+$("ftp-forward").onclick = () => {
+  if (ftpHistIdx >= ftpHistory.length - 1) return;
+  ftpHistIdx++;
+  listFtpDirectory(ftpHistory[ftpHistIdx], { record: false });
+};
+$("ftp-nav-up").onclick = () => listFtpDirectory(parentRemotePath(ftpCurrentDir()));
+$("ftp-refresh").onclick = () => ftpRelist();
+
+// file operations — invoked from the context menu / keyboard
+async function ftpMkdir() {
   const { host, port } = ftpHostPort();
   if (!host) { log("ftp-log", t("msg.need_host"), "err"); return; }
   const name = await promptInApp(t("ftp.mkdir_prompt"), "", { title: t("ftp.mkdir") });
@@ -980,10 +1032,9 @@ $("ftp-mkdir").onclick = async () => {
   if (!r.ok) return log("ftp-log", t("err.prefix") + r.error, "err");
   log("ftp-log", t("ftp.mkdir_ok", { name }), "ok");
   await ftpRelist();
-};
-$("ftp-rename").onclick = async () => {
+}
+async function ftpRename(entry) {
   const { host, port } = ftpHostPort();
-  const entry = ftpSelectedEntry();
   if (!host || !entry) return;
   const name = await promptInApp(t("ftp.rename_prompt", { name: entry.name }),
     entry.name, { title: t("ftp.rename") });
@@ -993,17 +1044,14 @@ $("ftp-rename").onclick = async () => {
   if (!r.ok) return log("ftp-log", t("err.prefix") + r.error, "err");
   log("ftp-log", t("ftp.rename_ok", { from: entry.name, to: name }), "ok");
   await ftpRelist();
-};
-function ftpClipboardSet(mode) {
-  const entry = ftpSelectedEntry();
+}
+function ftpClipboardSet(mode, entry) {
   if (!entry) return;
   ftpClip = { mode, items: [{ path: ftpEntryPath(entry), name: entry.name, is_dir: !!entry.is_dir }] };
   updateFtpToolbar();
   log("ftp-log", t(mode === "cut" ? "ftp.cut_ok" : "ftp.copy_ok", { name: entry.name }));
 }
-$("ftp-cut").onclick = () => ftpClipboardSet("cut");
-$("ftp-copy").onclick = () => ftpClipboardSet("copy");
-$("ftp-paste").onclick = () => {
+function ftpPaste() {
   const { host, port } = ftpHostPort();
   if (!host || !ftpClip || !ftpClip.items.length) return;
   const b = bridge(); if (!b) return;
@@ -1013,10 +1061,9 @@ $("ftp-paste").onclick = () => {
   b.start_ftp_paste(host, port, ftpClip.items, ftpCurrentDir(), ftpClip.mode);
   if (ftpClip.mode === "cut") ftpClip = null;   // a move consumes the clipboard
   updateFtpToolbar();
-};
-$("ftp-download").onclick = async () => {
+}
+async function ftpDownload(entry) {
   const { host, port } = ftpHostPort();
-  const entry = ftpSelectedEntry();
   if (!host || !entry) return;
   const b = bridge(); if (!b) return;
   const dest = await b.pick_folder();
@@ -1026,10 +1073,9 @@ $("ftp-download").onclick = async () => {
   $("ftp-upload").disabled = true; $("ftp-abort").disabled = false;
   b.start_ftp_download(host, port,
     [{ path: ftpEntryPath(entry), name: entry.name, is_dir: !!entry.is_dir }], dest);
-};
-$("ftp-delete").onclick = async () => {
+}
+async function ftpDelete(entry) {
   const { host, port } = ftpHostPort();
-  const entry = ftpSelectedEntry();
   if (!host || !entry) return;
   if (!await confirmInApp(t("ftp.delete_confirm", { name: entry.name }),
       { title: t("ftp.delete"), note: t("ftp.delete_note") })) return;
@@ -1039,27 +1085,84 @@ $("ftp-delete").onclick = async () => {
   if (!r.ok) return log("ftp-log", t("err.prefix") + r.error, "err");
   log("ftp-log", t("ftp.delete_ok", { name: entry.name }), "ok");
   await ftpRelist();
+}
+
+// context menu
+function closeCtxMenu() { $("ctx-menu").hidden = true; }
+function openCtxMenu(x, y, entry) {
+  const items = [];
+  if (entry) {
+    if (entry.is_dir)
+      items.push({ label: t("ftp.open_menu"), fn: () => listFtpDirectory(ftpEntryPath(entry)) });
+    else
+      items.push({ label: t("ftp.download"), fn: () => ftpDownload(entry) });
+    items.push({ label: t("ftp.rename"), fn: () => ftpRename(entry) });
+    items.push({ label: t("ftp.cut"), fn: () => ftpClipboardSet("cut", entry) });
+    items.push({ label: t("ftp.copy"), fn: () => ftpClipboardSet("copy", entry) });
+  }
+  if (ftpClip && ftpClip.items.length)
+    items.push({ label: t("ftp.paste"), fn: ftpPaste });
+  items.push({ label: t("ftp.mkdir"), fn: ftpMkdir });
+  if (entry)
+    items.push({ label: t("ftp.delete"), danger: true, fn: () => ftpDelete(entry) });
+
+  const menu = $("ctx-menu");
+  menu.innerHTML = items.map((it, i) =>
+    `<div class="ctx-item${it.danger ? " danger" : ""}" data-ci="${i}" role="menuitem" tabindex="0">${esc(it.label)}</div>`).join("");
+  menu.dataset.items = "";
+  menu._items = items;
+  menu.hidden = false;
+  // clamp to viewport
+  const mw = menu.offsetWidth, mh = menu.offsetHeight;
+  menu.style.left = Math.min(x, innerWidth - mw - 6) + "px";
+  menu.style.top = Math.min(y, innerHeight - mh - 6) + "px";
+}
+$("ctx-menu").onclick = ev => {
+  const item = ev.target.closest(".ctx-item");
+  if (!item) return;
+  const items = $("ctx-menu")._items || [];
+  const it = items[+item.dataset.ci];
+  closeCtxMenu();
+  if (it) it.fn();
 };
+$("ftp-entries").addEventListener("contextmenu", ev => {
+  ev.preventDefault();
+  const row = ev.target.closest("tr");
+  let entry = null;
+  if (row && !row.dataset.ftpParent && row.dataset.ftpIndex != null) {
+    setFtpSelection(+row.dataset.ftpIndex);
+    entry = ftpEntries[+row.dataset.ftpIndex];
+  }
+  openCtxMenu(ev.clientX, ev.clientY, entry);
+});
+document.addEventListener("click", ev => {
+  if (!$("ctx-menu").hidden && !ev.target.closest("#ctx-menu")) closeCtxMenu();
+});
+document.addEventListener("scroll", closeCtxMenu, true);
+
 // keyboard: Delete / F2 / Ctrl+X / Ctrl+C / Ctrl+V while browsing the list
 document.addEventListener("keydown", ev => {
-  if (dialogResolve) return;
+  if (dialogResolve) { return; }
+  if (ev.key === "Escape") closeCtxMenu();
   const page = document.querySelector(".page.on");
   if (!page || page.id !== "page-ftp") return;
   const tag = (ev.target.tagName || "").toLowerCase();
   if (tag === "input" || tag === "textarea" || tag === "select") return;
-  const fire = id => { const el = $(id); if (!el.disabled) { ev.preventDefault(); el.click(); } };
-  if (ev.key === "Delete") fire("ftp-delete");
-  else if (ev.key === "F2") fire("ftp-rename");
-  else if ((ev.ctrlKey || ev.metaKey) && ev.key.toLowerCase() === "x") fire("ftp-cut");
-  else if ((ev.ctrlKey || ev.metaKey) && ev.key.toLowerCase() === "c") fire("ftp-copy");
-  else if ((ev.ctrlKey || ev.metaKey) && ev.key.toLowerCase() === "v") fire("ftp-paste");
+  const entry = ftpSelectedEntry();
+  const ctrl = ev.ctrlKey || ev.metaKey;
+  if (ev.key === "Delete" && entry) { ev.preventDefault(); ftpDelete(entry); }
+  else if (ev.key === "F2" && entry) { ev.preventDefault(); ftpRename(entry); }
+  else if (ctrl && ev.key.toLowerCase() === "x" && entry) { ev.preventDefault(); ftpClipboardSet("cut", entry); }
+  else if (ctrl && ev.key.toLowerCase() === "c" && entry) { ev.preventDefault(); ftpClipboardSet("copy", entry); }
+  else if (ctrl && ev.key.toLowerCase() === "v") { ev.preventDefault(); ftpPaste(); }
 });
 
 function onUploadProgress(ev) {
   const frac = ev.total ? ev.done / ev.total : 0;
   $("ftp-pct").textContent = (frac * 100).toFixed(1) + "%";
   $("ftp-fill").style.width = (frac * 100) + "%";
-  document.querySelector("#page-ftp .bar").classList.remove("idle");
+  // stop the barber-pole stripes once the transfer reaches 100%
+  document.querySelector("#page-ftp .bar").classList.toggle("idle", frac >= 1);
   const el = (Date.now() - S.t0) / 1000, sp = el > 0 ? ev.done / el : 0;
   $("ftp-stats").textContent = `${human(ev.done)} / ${human(ev.total)} · ${(sp / 1048576).toFixed(1)} MB/s`;
 }

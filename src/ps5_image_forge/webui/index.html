@@ -173,10 +173,6 @@
         </div>
         <div class="hint" data-i18n="extract.hint">Supports .exfat, .ffpkg and .ffpfsc</div>
       </div>
-      <div class="panel">
-        <span class="tag" data-i18n="tag.console">CONSOLE</span>
-        <div class="logbox" id="ex-log"></div>
-      </div>
       <div class="actions">
         <button id="ex-abort" class="danger contextual" disabled data-i18n="btn.abort">CANCEL</button>
         <button id="ex-run" class="primary" data-i18n="btn.extract">EXTRACT</button>
@@ -339,13 +335,11 @@
         <div class="panel">
           <span class="tag">REMOTE</span>
           <div class="row ftp-toolbar">
-            <button id="ftp-mkdir" data-i18n="ftp.mkdir">NEW FOLDER</button>
-            <button id="ftp-rename" disabled data-i18n="ftp.rename">RENAME</button>
-            <button id="ftp-cut" disabled data-i18n="ftp.cut">CUT</button>
-            <button id="ftp-copy" disabled data-i18n="ftp.copy">COPY</button>
-            <button id="ftp-paste" disabled data-i18n="ftp.paste">PASTE</button>
-            <button id="ftp-download" disabled data-i18n="ftp.download">DOWNLOAD</button>
-            <button id="ftp-delete" class="danger" disabled data-i18n="ftp.delete">DELETE</button>
+            <button id="ftp-back" disabled data-i18n-title="ftp.back" title="Back">◀</button>
+            <button id="ftp-forward" disabled data-i18n-title="ftp.forward" title="Forward">▶</button>
+            <button id="ftp-nav-up" disabled data-i18n-title="ftp.up_title" title="Up">▲</button>
+            <button id="ftp-refresh" data-i18n-title="ftp.refresh" title="Refresh">⟳</button>
+            <span class="dim" id="ftp-hint-menu" data-i18n="ftp.rightclick" style="margin-left:6px;font-size:10px"></span>
           </div>
           <div class="table-scroll" style="max-height:230px">
             <table><thead><tr><th data-i18n="col.name">NAME</th><th class="num" data-i18n="col.size">SIZE</th></tr></thead>
@@ -354,10 +348,6 @@
           </div>
           <div class="hint" id="ftp-clip" style="margin-top:6px"></div>
         </div>
-      </div>
-      <div class="panel">
-        <span class="tag" data-i18n="tag.console">CONSOLE</span>
-        <div class="logbox" id="ftp-log" style="height:110px"></div>
       </div>
     </section>
 
@@ -464,11 +454,6 @@
         </div>
         <div class="hint" data-i18n="payload.hint">The PS5 must be listening (etaHEN / GoldHEN loader) before sending.</div>
       </div>
-
-      <div class="panel payload-console-panel">
-        <span class="tag" data-i18n="tag.console">CONSOLE</span>
-        <div class="logbox" id="pl-log" style="height:110px"></div>
-      </div>
     </section>
 
     <!-- ── BACKPORT ─────────────────────────────────────── -->
@@ -523,11 +508,6 @@
             <th data-i18n="bp.current">CURRENT SDK</th><th data-i18n="col.note">NOTE</th>
           </tr></thead><tbody id="bp-list"></tbody></table>
         </div>
-      </div>
-
-      <div class="panel">
-        <span class="tag" data-i18n="tag.console">CONSOLE</span>
-        <div class="logbox" id="bp-log" style="height:120px"></div>
       </div>
     </section>
 
@@ -686,6 +666,8 @@
   </div>
 </footer>
 </div>
+
+<div id="ctx-menu" class="ctx-menu" hidden role="menu"></div>
 
 <div id="app-dialog-backdrop" class="dialog-backdrop" hidden>
   <div class="app-dialog" role="dialog" aria-modal="true"

@@ -300,8 +300,19 @@ tbody tr.open-row td:first-child { box-shadow: inset 2px 0 0 var(--ok); }
 .ftp-file .ftp-kind { color: var(--text-dim); }
 #ftp-entries tr.ftp-sel { background: rgba(0,229,255,.16);
   box-shadow: inset 2px 0 0 var(--cyan); }
-.ftp-toolbar { flex-wrap: wrap; gap: 6px; margin: 0 0 8px; }
-.ftp-toolbar button { padding: 4px 11px; font-size: 10.5px; }
+.ftp-toolbar { flex-wrap: wrap; gap: 6px; margin: 0 0 8px; align-items: center; }
+.ftp-toolbar button { padding: 4px 12px; font-size: 12px; min-width: 34px; }
+.ctx-menu { position: fixed; z-index: 200; min-width: 148px;
+  background: var(--panel-solid); border: 1px solid var(--cyan-dim);
+  box-shadow: 0 8px 26px rgba(0,8,16,.6); padding: 4px 0; }
+.ctx-item { padding: 6px 15px; font-size: 12px; color: var(--text);
+  cursor: pointer; letter-spacing: .4px; white-space: nowrap; }
+.ctx-item:hover, .ctx-item:focus { background: rgba(0,229,255,.14);
+  color: #eaffff; outline: none; }
+.ln.live { color: var(--cyan); }
+.ctx-item.danger { color: var(--magenta); }
+.ctx-item.danger:hover, .ctx-item.danger:focus {
+  background: rgba(255,45,149,.16); color: #ffd7ea; }
 #page-ftp .table-scroll table { min-width: 0; }
 .badge { display: inline-block; padding: 1px 7px; font-size: 9px; letter-spacing: 1px;
   border: 1px solid currentColor; }
