@@ -17,3 +17,4 @@ dist/
 build-candidate*/
 dist-candidate*/
 .test-tmp-*/
+installer/assets/
