@@ -96,13 +96,13 @@
         <div class="row">
           <label class="field" data-i18n="lbl.source">SOURCE</label>
           <input type="text" id="source" spellcheck="false">
-          <button id="pick-source" data-i18n="btn.browse">SCAN…</button>
-          <button id="pick-source-image" data-i18n="btn.file">FILE…</button>
+          <button id="pick-source" data-i18n="btn.browse">DIR</button>
+          <button id="pick-source-image" data-i18n="btn.file">FILE</button>
         </div>
         <div class="row">
           <label class="field" data-i18n="lbl.output">OUTPUT</label>
           <input type="text" id="output" spellcheck="false">
-          <button id="pick-output" data-i18n="btn.browse2">DIR…</button>
+          <button id="pick-output" data-i18n="btn.browse2">DIR</button>
         </div>
         <div class="hint" id="source-info"></div>
       </div>
@@ -161,12 +161,12 @@
         <div class="row">
           <label class="field" data-i18n="lbl.image">IMAGE</label>
           <input type="text" id="ex-image" spellcheck="false">
-          <button id="ex-pick-image" data-i18n="btn.file">FILE…</button>
+          <button id="ex-pick-image" data-i18n="btn.file">FILE</button>
         </div>
         <div class="row">
           <label class="field" data-i18n="lbl.dest">DEST</label>
           <input type="text" id="ex-dest" spellcheck="false">
-          <button id="ex-pick-dest" data-i18n="btn.browse2">DIR…</button>
+          <button id="ex-pick-dest" data-i18n="btn.browse2">DIR</button>
         </div>
         <div class="opts">
           <span class="chip" id="ex-overwrite"><span class="box"></span><span data-i18n="opt.overwrite">OVERWRITE EXISTING</span></span>
@@ -190,7 +190,7 @@
         <div class="row">
           <label class="field" data-i18n="lbl.image">IMAGE</label>
           <input type="text" id="in-image" spellcheck="false">
-          <button id="in-pick" data-i18n="btn.file">FILE…</button>
+          <button id="in-pick" data-i18n="btn.file">FILE</button>
           <button id="in-run" data-i18n="btn.inspect">INSPECT</button>
         </div>
         <div class="hint" id="in-summary"></div>
@@ -207,7 +207,7 @@
         <span class="tag" data-i18n="tag.folders">FOLDERS</span>
         <div class="row">
           <input type="text" id="lib-folders" spellcheck="false" placeholder="D:\PS5;E:\dumps">
-          <button id="lib-add" data-i18n="btn.browse2">DIR…</button>
+          <button id="lib-add" data-i18n="btn.browse2">DIR</button>
           <button id="lib-scan" data-i18n="btn.scan">SCAN</button>
         </div>
         <div class="hint" data-i18n="library.hint">Separate multiple folders with ;</div>
@@ -324,7 +324,7 @@
           <span class="tag">UPLOAD</span>
           <div class="row">
             <input type="text" id="ftp-file" spellcheck="false">
-            <button id="ftp-pick" data-i18n="btn.file">FILE…</button>
+            <button id="ftp-pick" data-i18n="btn.file">FILE</button>
           </div>
           <div class="prog-top" style="margin-top:9px">
             <span id="ftp-pct" style="font-size:20px;color:var(--cyan);min-width:74px">0.0%</span>
@@ -436,7 +436,7 @@
           <div class="row">
             <label class="field" data-i18n="lbl.folder">FOLDER</label>
             <input type="text" id="pl-dir" spellcheck="false">
-            <button id="pl-pick-dir" data-i18n="btn.browse2">BROWSE…</button>
+            <button id="pl-pick-dir" data-i18n="btn.browse2">DIR</button>
             <button id="pl-scan" data-i18n="btn.scan">SCAN</button>
           </div>
           <div class="hint" data-i18n="payload.libhint">Put your .elf / .bin payloads in one folder. Details are read from each file; a matching .txt / .md / .json is used as its description.</div>
@@ -469,8 +469,8 @@
         <div class="row">
           <label class="field" data-i18n="bp.source">SOURCE</label>
           <input type="text" id="bp-dir" spellcheck="false" data-i18n-ph="bp.source.ph" placeholder="Game folder or exfat/pfs/ffpkg image">
-          <button id="bp-pick" data-i18n="btn.browse2">DIR…</button>
-          <button id="bp-pick-image" data-i18n="btn.file">FILE…</button>
+          <button id="bp-pick" data-i18n="btn.browse2">DIR</button>
+          <button id="bp-pick-image" data-i18n="btn.file">FILE</button>
           <button id="bp-scan" data-i18n="btn.scan">SCAN</button>
         </div>
         <div class="row">
@@ -497,8 +497,8 @@
         <div class="row">
           <label class="field" data-i18n="bp.ov.patch">PATCH</label>
           <input type="text" id="bp-patch" spellcheck="false" data-i18n-ph="bp.ov.patch.ph" placeholder="A .zip or folder of replacement files">
-          <button id="bp-patch-pick-file" data-i18n="btn.file">FILE…</button>
-          <button id="bp-patch-pick-dir" data-i18n="btn.browse2">DIR…</button>
+          <button id="bp-patch-pick-file" data-i18n="btn.file">FILE</button>
+          <button id="bp-patch-pick-dir" data-i18n="btn.browse2">DIR</button>
           <button id="bp-overwrite" class="primary" data-i18n="bp.ov.apply">APPLY OVERWRITE</button>
         </div>
         <div class="hint" data-i18n="bp.ov.hint">Overlays the patch onto the SOURCE folder or image above, matching files by relative path. Nothing is deleted; replaced originals are backed up.</div>
@@ -529,7 +529,7 @@
         <div class="row">
           <label class="field" data-i18n="lbl.output">OUTPUT</label>
           <input type="text" id="set-output" spellcheck="false">
-          <button id="set-pick-output" data-i18n="btn.browse2">DIR…</button>
+          <button id="set-pick-output" data-i18n="btn.browse2">DIR</button>
         </div>
         <div class="row">
           <label class="field" data-i18n="set.libdirs">LIBRARY</label>
@@ -538,7 +538,7 @@
         <div class="row">
           <label class="field" data-i18n="set.workdir">WORK DIR</label>
           <input type="text" id="set-workdir" spellcheck="false" data-i18n-ph="set.workdir.ph" placeholder="Blank = beside the output (put on an SSD)">
-          <button id="set-pick-workdir" data-i18n="btn.browse2">DIR…</button>
+          <button id="set-pick-workdir" data-i18n="btn.browse2">DIR</button>
         </div>
         <div class="hint" data-i18n="set.workdir.hint">Scratch space for IO-heavy work (compress, unpack/repack). Point it at a fast SSD when your library lives on an HDD.</div>
         <div class="row">
