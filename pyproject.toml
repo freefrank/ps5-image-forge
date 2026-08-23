@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ps5-image-forge"
-version = "0.7.0"
+version = "0.0.4"
 description = "Mount-free exFAT / PFS image builder for PS5 game dumps"
 readme = "README.md"
 requires-python = ">=3.11"
