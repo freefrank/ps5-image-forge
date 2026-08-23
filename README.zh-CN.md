@@ -137,10 +137,6 @@ Backport 页可以扫描游戏目录中的 `.bin` / `.elf` / `.self` / `.prx` / 
 
 目标 SDK 会跟随设置中的 PS5 固件自动建议。Payload 页同时内置 BestPig 官方 BackPork payload，用于后台 unionfs 覆盖流程：自动 Backport 负责准备 fake-signed 降级文件，BackPork payload 负责在主机端提供覆盖层。
 
-## 未在真机验证
-
-PS5 网络功能（FTP / 内核日志 / Payload）的协议逻辑用本地 socket 服务器验证过，但**没有对真实 PS5 主机测试过**。
-
 ## 开发文档
 
 当前进度、已确定的需求与设计决策、待办事项：[docs/DEVELOPMENT.md](docs/DEVELOPMENT.md)。

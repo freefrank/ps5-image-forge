@@ -137,10 +137,6 @@ The Backport page can scan a game folder for `.bin` / `.elf` / `.self` / `.prx` 
 
 The target SDK is auto-suggested from the PS5 firmware in Settings. The Payload page also bundles BestPig's official BackPork payload for the background unionfs overlay flow: Auto Backport prepares the fake-signed downgraded files, and the BackPork payload provides the overlay on the console side.
 
-## Not verified on real hardware
-
-The protocol logic of the PS5 network features (FTP / Kernel Log / Payload) has been validated against a local socket server, but **has not been tested against a real PS5 console**.
-
 ## Development docs
 
 Current progress, settled requirements and design decisions, and the todo list: [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md).
