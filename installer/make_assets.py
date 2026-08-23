@@ -244,6 +244,67 @@ def build_icon():
     return img
 
 
+def build_dmg_background(version: str):
+    """1320x800 (2x of a 660x400 window) background for the macOS DMG.
+
+    The DMG window shows the app icon on the left and an Applications
+    shortcut on the right; this art frames both slots and points a neon
+    arrow from one to the other. Icon coordinates are set in the CI in
+    window points: icon at (160,185), Applications at (500,185).
+    """
+    W, H = 1320, 800
+    img = vgradient((W, H), BG2, BG)
+    img = add_top_glow(img, color=PANEL)
+    img = add_grid(img, step=80, alpha=12)
+
+    # wordmark
+    f_big = load_font(50)
+    img = glow_text(img, (W // 2, 46), "PS5 IMAGE", f_big, CYAN, CYAN,
+                    anchor="ma", radius=8, tracking=8)
+    d = ImageDraw.Draw(img)
+    d.rectangle([W // 2 - 17, 112, W // 2 + 17, 146], fill=MAGENTA)
+    img = glow_text(img, (W // 2, 158), "FORGE", f_big, CYAN, CYAN,
+                    anchor="ma", radius=8, tracking=8)
+    f_tag = load_font(19)
+    img = glow_text(img, (W // 2, 232), "PS5 DUMP IMAGE TOOLKIT",
+                    f_tag, TEXT_DIM, PANEL, anchor="ma", radius=2, tracking=3)
+
+    # Slots frame where Finder places the icons, at the DMG's default
+    # positions in 2x space: app icon (160,185)->(320,372), Applications
+    # (500,185)->(1000,372).
+    CY, R = 372, 104
+
+    def slot(cx, color):
+        layer = Image.new("RGBA", img.size, (0, 0, 0, 0))
+        ImageDraw.Draw(layer).rounded_rectangle(
+            [cx - R, CY - R, cx + R, CY + R], radius=26,
+            outline=color + (170,), width=3)
+        return layer.filter(ImageFilter.GaussianBlur(6))
+
+    glow = Image.alpha_composite(
+        Image.alpha_composite(img.convert("RGBA"), slot(320, CYAN)),
+        slot(1000, CYAN_DIM))
+    img = glow.convert("RGB")
+    d = ImageDraw.Draw(img)
+    for cx, col in ((320, CYAN), (1000, CYAN_DIM)):
+        d.rounded_rectangle([cx - R, CY - R, cx + R, CY + R],
+                            radius=26, outline=col, width=2)
+
+    # arrow + caption between the slots
+    ay = CY
+    d.line([(470, ay), (830, ay)], fill=CYAN, width=3)
+    d.polygon([(830, ay - 12), (860, ay), (830, ay + 12)], fill=CYAN)
+    f_cap = load_font(22)
+    img = glow_text(img, (660, ay - 54), "DRAG TO INSTALL", f_cap, CYAN, CYAN,
+                    anchor="ma", radius=4, tracking=3)
+    # Finder draws the real "PS5 Image Forge" / "Applications" labels under
+    # each icon, so we don't paint our own (they would duplicate).
+    img = glow_text(img, (W // 2, H - 46), f"v{version}", load_font(20),
+                    CYAN, PANEL, anchor="ma", radius=2, tracking=2)
+    img = add_scanlines(img, gap=4, alpha=30)
+    return img
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--version", default="0.0.0")
@@ -263,6 +324,12 @@ def main() -> int:
                      (32, 32), (16, 16)])
     # 256x256 PNG for the Linux AppImage / .desktop icon
     icon.save(ASSETS / "icon.png", format="PNG")
+    # macOS .icns for the .app bundle (rendered at 512 for Retina)
+    icon.convert("RGBA").resize((512, 512)).save(
+        ASSETS / "icon.icns", format="ICNS")
+    # macOS DMG window background
+    build_dmg_background(args.version).save(
+        ASSETS / "dmg_background.png", format="PNG")
     # a magenta-tinted variant for the uninstaller
     unicon = icon.copy()
     unicon.save(ASSETS / "uninstall.ico", format="ICO",

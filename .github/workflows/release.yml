@@ -4,6 +4,7 @@ name: release
 #   - Windows portable  (PyInstaller single-file exe)
 #   - Windows installer (NSIS setup, cyberpunk-styled)
 #   - Linux AppImage    (PyInstaller + linuxdeploy)
+#   - macOS DMG         (PyInstaller .app + create-dmg, cyberpunk background)
 
 on:
   push:
@@ -18,9 +19,9 @@ jobs:
   windows:
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: '3.13'
 
@@ -68,7 +69,7 @@ jobs:
           }
           powershell -ExecutionPolicy Bypass -File installer\build_installer.ps1
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: windows
           path: |
@@ -82,7 +83,7 @@ jobs:
     env:
       APPIMAGE_EXTRACT_AND_RUN: '1'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       # webkit2gtk + PyGObject (system python3-gi must be importable by the venv)
       - name: Install system dependencies
@@ -165,23 +166,86 @@ jobs:
           fi
           ls -la out/
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: linux
           path: out/PS5-Image-Forge-*-x86_64.AppImage
           if-no-files-found: error
 
+  # ------------------------------------------------------------------ macOS
+  macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pyinstaller pillow
+          # pywebview's macOS backend needs the pyobjc Cocoa/WebKit frameworks
+          pip install pyobjc-framework-Cocoa pyobjc-framework-WebKit
+          pip install .
+
+      - name: Version from tag
+        id: ver
+        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Branding assets
+        run: python installer/make_assets.py --version "${{ steps.ver.outputs.version }}"
+
+      - name: Build (.app bundle)
+        run: |
+          pyinstaller --noconfirm --windowed --name "PS5 Image Forge" \
+            --icon installer/assets/icon.icns \
+            --collect-submodules mkpfs --collect-all webview \
+            --add-data "src/ps5_image_forge/webui:ps5_image_forge/webui" \
+            --add-data "src/ps5_image_forge/payload_catalog.json:ps5_image_forge" \
+            --add-data "vendor/payloads:ps5_image_forge/bundled_payloads" \
+            --add-data "vendor/ufs2tool:ufs2tool" \
+            entry.py
+
+      - name: Self-test the build
+        run: |
+          "dist/PS5 Image Forge.app/Contents/MacOS/PS5 Image Forge" --selftest
+
+      - name: Create DMG
+        uses: L-Super/create-dmg-actions@v1.1.0
+        with:
+          dmg_name: PS5-Image-Forge-${{ steps.ver.outputs.version }}-macos-arm64
+          src_dir: dist/PS5 Image Forge.app
+          background: installer/assets/dmg_background.png
+          window_size: 660x400
+
+      - name: Stage macOS assets
+        run: |
+          mkdir -p out
+          mv PS5-Image-Forge-*-macos-arm64.dmg out/ 2>/dev/null || mv *.dmg out/
+          cp installer/macos/HOW-TO-OPEN.txt out/HOW-TO-OPEN-macOS.txt
+          ls -la out/
+
+      - uses: actions/upload-artifact@v6
+        with:
+          name: macos
+          path: |
+            out/*.dmg
+            out/HOW-TO-OPEN-macOS.txt
+          if-no-files-found: error
+
   # ---------------------------------------------------------------- Publish
   release:
-    needs: [windows, linux]
+    needs: [windows, linux, macos]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           path: assets
 
       - name: Publish GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           files: assets/**/*
           generate_release_notes: true
@@ -194,6 +258,11 @@ jobs:
             | `PS5-Image-Forge-*-win64-portable.exe` | Windows — portable single-file exe, no install |
             | `PS5-Image-Forge-Setup-*.exe` | Windows — installer |
             | `PS5-Image-Forge-*-x86_64.AppImage` | Linux — AppImage (x86_64) |
+            | `PS5-Image-Forge-*-macos-arm64.dmg` | macOS — DMG (Apple Silicon) |
+
+            **macOS note:** the app is unsigned, so Gatekeeper blocks the first
+            launch — see `HOW-TO-OPEN-macOS.txt` (also included in the DMG's
+            instructions) to open it.
 
             **Linux note:** the AppImage bundles the app and the GTK runtime but,
             like most pywebview apps, relies on the host's `libwebkit2gtk-4.1`

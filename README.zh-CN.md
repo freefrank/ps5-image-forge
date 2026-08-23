@@ -26,6 +26,7 @@
 | `PS5-Image-Forge-<版本>-win64-portable.exe` | **Windows** —— 便携版，单文件、免安装 |
 | `PS5-Image-Forge-Setup-<版本>.exe` | **Windows** —— 安装版 |
 | `PS5-Image-Forge-<版本>-x86_64.AppImage` | **Linux** —— AppImage（需宿主的 `libwebkit2gtk-4.1`） |
+| `PS5-Image-Forge-<版本>-macos-arm64.dmg` | **macOS** —— DMG，Apple 芯片（未签名；打开方式见 release 里的 `HOW-TO-OPEN-macOS.txt`） |
 
 ## 界面截图
 

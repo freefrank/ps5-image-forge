@@ -26,6 +26,7 @@ Prebuilt binaries are attached to each [release](https://github.com/freefrank/ps
 | `PS5-Image-Forge-<version>-win64-portable.exe` | **Windows** — portable single file, no install |
 | `PS5-Image-Forge-Setup-<version>.exe` | **Windows** — installer |
 | `PS5-Image-Forge-<version>-x86_64.AppImage` | **Linux** — AppImage (needs the host's `libwebkit2gtk-4.1`) |
+| `PS5-Image-Forge-<version>-macos-arm64.dmg` | **macOS** — DMG, Apple Silicon (unsigned; see `HOW-TO-OPEN-macOS.txt` in the release) |
 
 ## Screenshots
 

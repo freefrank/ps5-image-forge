@@ -1,0 +1,64 @@
+PS5 Image Forge — opening on macOS
+==================================
+
+This app is NOT signed with an Apple Developer ID and is NOT notarized, so
+macOS Gatekeeper will block it on first launch ("PS5 Image Forge is damaged
+and can't be opened", or "cannot be opened because the developer cannot be
+verified"). This is expected. Choose ONE of the methods below.
+
+Method 1 — Finder (easiest)
+---------------------------
+1. Drag "PS5 Image Forge.app" from this DMG into your Applications folder.
+2. In Applications, RIGHT-CLICK (or Control-click) the app and choose "Open".
+3. In the dialog that appears, click "Open" again.
+   You only need to do this once; afterwards it opens normally.
+
+If macOS still refuses (common on Apple Silicon, "app is damaged"), use
+Method 2 — it removes the quarantine flag macOS adds to downloaded files.
+
+Method 2 — Terminal (removes the quarantine flag)
+-------------------------------------------------
+Open Terminal and run (adjust the path if you put it elsewhere):
+
+    xattr -dr com.apple.quarantine "/Applications/PS5 Image Forge.app"
+
+Then launch the app normally from Applications or Launchpad.
+
+Notes
+-----
+- These steps are only needed because the build is unsigned; they do not
+  disable Gatekeeper system-wide.
+- System Settings > Privacy & Security also shows an "Open Anyway" button
+  after a blocked first launch, which achieves the same result as Method 1.
+
+
+PS5 Image Forge — 在 macOS 上打开
+=================================
+
+本程序未使用 Apple 开发者证书签名、也未经过公证（notarize），因此 macOS 的
+Gatekeeper 会在首次启动时拦截（提示“已损坏，无法打开”或“无法验证开发者”）。
+这是正常现象。任选下面一种方法即可。
+
+方法一 —— 访达（最简单）
+------------------------
+1. 把本 DMG 里的 “PS5 Image Forge.app” 拖到「应用程序」文件夹。
+2. 在「应用程序」里 右键（或按住 Control 点击）该程序，选择“打开”。
+3. 在弹出的对话框里再次点击“打开”。
+   只需做一次，之后即可正常打开。
+
+如果仍被拒绝（Apple 芯片上常见的“已损坏”提示），请用方法二 —— 它会移除
+macOS 给下载文件加的隔离（quarantine）标记。
+
+方法二 —— 终端（移除隔离标记）
+------------------------------
+打开「终端」，运行（若放在别处请自行修改路径）：
+
+    xattr -dr com.apple.quarantine "/Applications/PS5 Image Forge.app"
+
+然后从「应用程序」或「启动台」正常启动即可。
+
+说明
+----
+- 上述步骤仅因为该版本未签名；它们不会全局关闭 Gatekeeper。
+- 首次被拦截后，「系统设置 > 隐私与安全性」里也会出现“仍要打开”按钮，
+  效果与方法一相同。
