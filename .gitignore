@@ -3,6 +3,7 @@ __pycache__/
 *.pyc
 *.egg-info/
 build/
+build-new/
 dist/
 .playwright-cli/
 .pytest_cache/
