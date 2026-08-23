@@ -140,6 +140,10 @@ jobs:
           chmod +x linuxdeploy.AppImage linuxdeploy-plugin-gtk.sh
 
       - name: Build AppImage
+        env:
+          # PyInstaller bundles aren't plain dynamic ELFs, so the gtk plugin
+          # can't auto-detect the toolkit; pin it (pywebview uses GTK3/webkit2).
+          DEPLOY_GTK_VERSION: '3'
         run: |
           export PATH="$PWD:$PATH"   # let linuxdeploy find the gtk plugin in CWD
           export VERSION="${{ steps.ver.outputs.version }}"
