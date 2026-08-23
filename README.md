@@ -6,6 +6,14 @@ Mount-free image tooling for PS5 game dumps — a modern rewrite of exFAT Image 
 
 ---
 
+## Downloads
+
+Prebuilt binaries are attached to each [release](https://github.com/freefrank/ps5-image-forge/releases) (published automatically when a `v*` tag is pushed):
+
+- **Windows portable** — `PS5-Image-Forge-<version>-win64-portable.exe`, a single file, no install.
+- **Windows installer** — `PS5-Image-Forge-Setup-<version>.exe`.
+- **Linux AppImage** — `PS5-Image-Forge-<version>-x86_64.AppImage` (needs the host's `libwebkit2gtk-4.1`).
+
 ## Why the rewrite
 
 The original build pipeline was **OSFMount (drive letter) + format.com + robocopy**. In real use it exposed four structural problems:
@@ -144,6 +152,14 @@ GPL-3.0 (following [MkPFS](https://github.com/PSBrew/MkPFS) upstream). The UFS2T
 PS5 游戏 dump 镜像工具 —— exFAT Image Builder 的现代化免挂载重构版。
 
 [English](#ps5-image-forge) | **简体中文**
+
+## 下载
+
+预编译产物随每个 [release](https://github.com/freefrank/ps5-image-forge/releases) 发布（推送 `v*` tag 时自动构建）：
+
+- **Windows 便携版** —— `PS5-Image-Forge-<版本>-win64-portable.exe`，单文件、免安装。
+- **Windows 安装版** —— `PS5-Image-Forge-Setup-<版本>.exe`。
+- **Linux AppImage** —— `PS5-Image-Forge-<版本>-x86_64.AppImage`（需宿主的 `libwebkit2gtk-4.1`）。
 
 ## 为什么重写
 

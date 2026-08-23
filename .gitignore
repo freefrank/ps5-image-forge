@@ -13,6 +13,7 @@ dist/
 *.ffpkg
 *.ffpkg.part
 *.spec
+!PS5-Image-Forge.spec
 .build-venv*/
 build-candidate*/
 dist-candidate*/

@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=PS5 Image Forge
+GenericName=PS5 Image Builder
+Comment=Mount-free exFAT / PFS / UFS image builder for PS5 game dumps
+Exec=PS5-Image-Forge
+Icon=ps5-image-forge
+Categories=Utility;System;
+Terminal=false
+StartupWMClass=PS5 Image Forge

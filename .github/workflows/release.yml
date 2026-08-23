@@ -1,0 +1,197 @@
+name: release
+
+# Build and publish release assets when a v* tag is pushed:
+#   - Windows portable  (PyInstaller single-file exe)
+#   - Windows installer (NSIS setup, cyberpunk-styled)
+#   - Linux AppImage    (PyInstaller + linuxdeploy)
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  # ---------------------------------------------------------------- Windows
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Install dependencies
+        shell: pwsh
+        run: |
+          python -m pip install --upgrade pip
+          pip install pyinstaller pillow
+          pip install .
+
+      - name: Build single-file exe
+        shell: pwsh
+        run: pyinstaller --noconfirm PS5-Image-Forge.spec
+
+      - name: Self-test the exe
+        shell: pwsh
+        # The exe is a GUI-subsystem app, so it does not block the shell;
+        # Start-Process -Wait is required to capture its exit code.
+        run: |
+          $p = Start-Process -FilePath dist\PS5-Image-Forge.exe -ArgumentList '--selftest' `
+                 -Wait -PassThru -NoNewWindow
+          if ($p.ExitCode -ne 0) { throw "selftest failed ($($p.ExitCode))" }
+
+      - name: Version from tag
+        id: ver
+        shell: pwsh
+        run: |
+          $v = "${{ github.ref_name }}".TrimStart('v')
+          "version=$v" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+
+      - name: Windows portable
+        shell: pwsh
+        run: |
+          Copy-Item dist\PS5-Image-Forge.exe `
+            "dist\PS5-Image-Forge-${{ steps.ver.outputs.version }}-win64-portable.exe"
+
+      - name: Windows installer
+        shell: pwsh
+        # NSIS is preinstalled on windows-latest; build_installer.ps1 finds
+        # makensis on PATH or in Program Files. Install only if it's missing.
+        run: |
+          if (-not (Get-Command makensis -ErrorAction SilentlyContinue) -and
+              -not (Test-Path "${env:ProgramFiles(x86)}\NSIS\makensis.exe")) {
+            choco install nsis -y --no-progress
+          }
+          powershell -ExecutionPolicy Bypass -File installer\build_installer.ps1
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows
+          path: |
+            dist/PS5-Image-Forge-${{ steps.ver.outputs.version }}-win64-portable.exe
+            dist/PS5-Image-Forge-Setup-*.exe
+          if-no-files-found: error
+
+  # ------------------------------------------------------------------ Linux
+  linux:
+    runs-on: ubuntu-24.04
+    env:
+      APPIMAGE_EXTRACT_AND_RUN: '1'
+    steps:
+      - uses: actions/checkout@v4
+
+      # webkit2gtk + PyGObject (system python3-gi must be importable by the venv)
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            python3-venv python3-dev python3-gi python3-gi-cairo gobject-introspection \
+            libgirepository-1.0-1 gir1.2-gtk-3.0 gir1.2-webkit2-4.1 \
+            libgtk-3-0 libwebkit2gtk-4.1-0 \
+            libfuse2 desktop-file-utils
+
+      - name: Python environment
+        run: |
+          python3 -m venv --system-site-packages build-venv
+          . build-venv/bin/activate
+          python -m pip install --upgrade pip
+          pip install pyinstaller pillow
+          pip install .
+
+      - name: Build (PyInstaller onedir)
+        run: |
+          . build-venv/bin/activate
+          pyinstaller --noconfirm --name PS5-Image-Forge --windowed \
+            --collect-submodules mkpfs --collect-all webview --collect-all gi \
+            --add-data "src/ps5_image_forge/webui:ps5_image_forge/webui" \
+            --add-data "src/ps5_image_forge/payload_catalog.json:ps5_image_forge" \
+            --add-data "vendor/payloads:ps5_image_forge/bundled_payloads" \
+            --add-data "vendor/ufs2tool:ufs2tool" \
+            entry.py
+
+      - name: Self-test the build
+        run: ./dist/PS5-Image-Forge/PS5-Image-Forge --selftest
+
+      - name: Version from tag
+        id: ver
+        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Branding icon
+        run: |
+          . build-venv/bin/activate
+          python installer/make_assets.py --version "${{ steps.ver.outputs.version }}"
+          cp installer/assets/icon.png ps5-image-forge.png
+
+      - name: Assemble AppDir
+        run: |
+          mkdir -p AppDir/usr/bin
+          cp -a dist/PS5-Image-Forge/. AppDir/usr/bin/
+
+      - name: Fetch linuxdeploy
+        run: |
+          base=https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous
+          gtk=https://raw.githubusercontent.com/linuxdeploy/linuxdeploy-plugin-gtk/master/linuxdeploy-plugin-gtk.sh
+          curl -fsSL -o linuxdeploy.AppImage       "$base/linuxdeploy-x86_64.AppImage"
+          curl -fsSL -o linuxdeploy-plugin-gtk.sh  "$gtk"
+          chmod +x linuxdeploy.AppImage linuxdeploy-plugin-gtk.sh
+
+      - name: Build AppImage
+        run: |
+          export PATH="$PWD:$PATH"   # let linuxdeploy find the gtk plugin in CWD
+          export VERSION="${{ steps.ver.outputs.version }}"
+          export OUTPUT="PS5-Image-Forge-${VERSION}-x86_64.AppImage"
+          ./linuxdeploy.AppImage \
+            --appdir AppDir \
+            --executable AppDir/usr/bin/PS5-Image-Forge \
+            --desktop-file installer/linux/ps5-image-forge.desktop \
+            --icon-file ps5-image-forge.png \
+            --plugin gtk \
+            --output appimage
+          mkdir -p out
+          if [ -f "$OUTPUT" ]; then
+            mv "$OUTPUT" out/
+          else
+            # linuxdeploy auto-named it; grab the app's AppImage (not the tools')
+            mv PS5-Image-Forge*-x86_64.AppImage out/ 2>/dev/null \
+              || mv PS5_Image_Forge*-x86_64.AppImage "out/$OUTPUT"
+          fi
+          ls -la out/
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux
+          path: out/PS5-Image-Forge-*-x86_64.AppImage
+          if-no-files-found: error
+
+  # ---------------------------------------------------------------- Publish
+  release:
+    needs: [windows, linux]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: assets
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: assets/**/*
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+          body: |
+            ## PS5 Image Forge ${{ github.ref_name }}
+
+            | Asset | Platform |
+            |---|---|
+            | `PS5-Image-Forge-*-win64-portable.exe` | Windows — portable single-file exe, no install |
+            | `PS5-Image-Forge-Setup-*.exe` | Windows — installer |
+            | `PS5-Image-Forge-*-x86_64.AppImage` | Linux — AppImage (x86_64) |
+
+            **Linux note:** the AppImage bundles the app and the GTK runtime but,
+            like most pywebview apps, relies on the host's `libwebkit2gtk-4.1`
+            (present on most desktops, or `apt install libwebkit2gtk-4.1-0`). The
+            `.ffpkg` (UFS) backend additionally needs the .NET 8 runtime.

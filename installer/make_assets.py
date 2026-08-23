@@ -261,6 +261,8 @@ def main() -> int:
     icon.save(ASSETS / "installer.ico", format="ICO",
               sizes=[(256, 256), (128, 128), (64, 64), (48, 48),
                      (32, 32), (16, 16)])
+    # 256x256 PNG for the Linux AppImage / .desktop icon
+    icon.save(ASSETS / "icon.png", format="PNG")
     # a magenta-tinted variant for the uninstaller
     unicon = icon.copy()
     unicon.save(ASSETS / "uninstall.ico", format="ICO",
