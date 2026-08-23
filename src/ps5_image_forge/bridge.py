@@ -226,6 +226,27 @@ class Bridge:
                 "version": version or "",
                 "has_eboot": (p / "eboot.bin").is_file()}
 
+    def inspect_any(self, path: str) -> dict:
+        """Read game metadata from a dump folder or an image, cheaply.
+
+        Dumps and raw .exfat images are read in place. PFS/ffpkg wrap or
+        compress their contents, so a quick peek isn't possible without
+        unpacking — those return ``ok: False`` and simply show no info line.
+        """
+        p = Path(str(path).strip('" '))
+        if p.is_dir():
+            title_id, title, version = core.read_param_json(p)
+            return {"ok": bool(title_id or title or version), "kind": "dump",
+                    "title_id": title_id or "", "title": title or "",
+                    "version": version or "",
+                    "has_eboot": (p / "eboot.bin").is_file()}
+        if p.suffix.lower() == ".exfat" and p.is_file():
+            title_id, title, version = core.read_image_param_json(p)
+            return {"ok": bool(title_id or title or version), "kind": "image",
+                    "title_id": title_id or "", "title": title or "",
+                    "version": version or "", "has_eboot": True}
+        return {"ok": False}
+
     # ── history ───────────────────────────────────────────────────
 
     def get_history(self) -> list[dict]:

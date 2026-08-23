@@ -191,6 +191,25 @@ def test_inspect_source_rejects_non_directory(tmp_path: Path) -> None:
     assert not RecordingBridge().inspect_source(str(tmp_path / "nope"))["ok"]
 
 
+def test_inspect_any_reads_folder_and_exfat_image(dump: Path, tmp_path: Path) -> None:
+    from ps5_image_forge import core
+
+    b = RecordingBridge()
+    # dump folder
+    folder = b.inspect_any(str(dump))
+    assert folder["ok"] and folder["kind"] == "dump"
+    assert folder["title_id"] == "PPSA77777" and folder["title"] == "Bridge Test"
+
+    # exFAT image built from the same dump — metadata read in place
+    image = core.build_exfat(dump, tmp_path / "g.exfat")
+    img = b.inspect_any(str(image))
+    assert img["ok"] and img["kind"] == "image"
+    assert img["title_id"] == "PPSA77777" and img["version"] == "03.000.000"
+
+    # a non-game path returns not-ok (no info line shown)
+    assert b.inspect_any(str(tmp_path / "nope.txt"))["ok"] is False
+
+
 def test_build_pushes_progress_and_done(dump: Path, tmp_path: Path) -> None:
     b = RecordingBridge()
     b.start_build({"source": str(dump), "output": str(tmp_path / "out"),

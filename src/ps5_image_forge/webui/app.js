@@ -527,6 +527,26 @@ async function pickInto(inputId, kind, patterns) {
   const p = kind === "file" ? await b.pick_file(patterns || null) : await b.pick_folder();
   if (p) { $(inputId).value = p; if (inputId === "source") describeSource(p); }
 }
+// Format a game-metadata reply into a one-line summary shown under the input.
+function gameInfoBits(info) {
+  if (!info || !info.ok) return "";
+  const bits = [];
+  if (info.title_id) bits.push(info.title_id);
+  if (info.title) bits.push(info.title);
+  if (info.version) bits.push("v" + info.version);
+  if (info.has_eboot === false) bits.push("⚠ " + t("msg.noeboot"));
+  return bits.join("  ·  ");
+}
+async function showGameInfo(elId, path) {
+  const el = $(elId);
+  if (!el) return null;
+  const b = bridge();
+  if (!b || !path) { el.textContent = ""; return null; }
+  const info = await b.inspect_any(path);   // dump folder or .exfat image
+  el.textContent = gameInfoBits(info);
+  return info;
+}
+
 $("pick-source").onclick = () => pickInto("source", "dir");
 $("pick-source-image").onclick = async () => {
   const b = bridge();
@@ -540,13 +560,18 @@ $("pick-source-image").onclick = async () => {
     const pfs = document.querySelector('#page-build .mode[data-mode="pfs"]');
     if (pfs && !pfs.classList.contains("on")) pfs.click();
     if (!$("output").value) $("output").value = p.replace(/[\\\/][^\\\/]*$/, "");
-    $("source-info").textContent = t("msg.compress_hint");
+    const bits = gameInfoBits(await showGameInfo("source-info", p));
+    $("source-info").textContent = (bits ? bits + "  ·  " : "") + t("msg.compress_hint");
   } else {
     describeSource(p);
   }
 };
 $("pick-output").onclick = () => pickInto("output", "dir");
-$("ex-pick-image").onclick = () => pickInto("ex-image", "file");
+$("ex-pick-image").onclick = async () => {
+  await pickInto("ex-image", "file");
+  showGameInfo("ex-info", $("ex-image").value.trim());
+};
+$("ex-image").onchange = () => showGameInfo("ex-info", $("ex-image").value.trim());
 $("ex-pick-dest").onclick = () => pickInto("ex-dest", "dir");
 $("in-pick").onclick = () => pickInto("in-image", "file");
 $("ftp-pick").onclick = () => pickInto("ftp-file", "file");
@@ -559,18 +584,9 @@ $("set-pick-output").onclick = () => pickInto("set-output", "dir");
 $("set-pick-workdir").onclick = () => pickInto("set-workdir", "dir");
 
 async function describeSource(path) {
-  const b = bridge(); if (!b) return;
-  const info = await b.inspect_source(path);
-  if (!info.ok) { $("source-info").textContent = ""; return; }
-  const bits = [];
-  if (info.title_id) bits.push(info.title_id);
-  if (info.title) bits.push(info.title);
-  if (info.version) bits.push("v" + info.version);
-  if (!info.has_eboot) bits.push("⚠ " + t("msg.noeboot"));
-  $("source-info").textContent = bits.join("  ·  ");
-  if (!$("output").value) {
-    const parent = path.replace(/[\\\/][^\\\/]*$/, "");
-    $("output").value = parent;
+  const info = await showGameInfo("source-info", path);
+  if (info && info.ok && !$("output").value) {
+    $("output").value = path.replace(/[\\\/][^\\\/]*$/, "");
   }
 }
 $("source").onchange = () => describeSource($("source").value.trim());
@@ -1472,6 +1488,7 @@ $("bp-patch-pick-dir").onclick = async () => {
   if (folder) $("bp-patch").value = folder;
 };
 $("bp-scan").onclick = () => scanBackport();
+$("bp-dir").onchange = () => showGameInfo("bp-info", $("bp-dir").value.trim());
 $("bp-apply").onclick = async () => {
   const source = $("bp-dir").value.trim();
   if (!source) { log("bp-log", t("bp.no_folder"), "err"); return; }
@@ -1557,6 +1574,7 @@ $("bp-restore").onclick = async () => {
 async function scanBackport() {
   const folder = $("bp-dir").value.trim();
   if (!folder) { log("bp-log", t("bp.no_folder"), "err"); return; }
+  showGameInfo("bp-info", folder);
   if (isImagePath(folder)) {
     // Scanning reads a folder's files; an image is edited in place instead,
     // so just arm the actions and skip the (folder-only) file listing.
