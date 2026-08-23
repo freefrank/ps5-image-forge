@@ -175,7 +175,7 @@ def build_welcome(version: str):
     d.line([(28, ry), (W - 28, ry)], fill=CYAN_DIM, width=1)
     # tagline
     f_tag = load_font(11)
-    img = glow_text(img, (W // 2, ry + 16), "MOUNT-FREE  BUILDER",
+    img = glow_text(img, (W // 2, ry + 16), "PS5 IMAGE TOOLKIT",
                     f_tag, TEXT_DIM, PANEL, anchor="ma", radius=2, tracking=1)
 
     # bottom: version + faux status line

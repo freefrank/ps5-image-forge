@@ -3,7 +3,7 @@
 
 window.I18N = {
   en: {
-    "tagline": "MOUNT-FREE IMAGE COMPILER",
+    "tagline": "PS5 DUMP IMAGE TOOLKIT",
     // nav
     "nav.grp.build": "BUILD", "nav.grp.manage": "MANAGE",
     "nav.grp.ps5": "PS5", "nav.grp.system": "SYSTEM",
@@ -18,7 +18,6 @@ window.I18N = {
     // home
     "home.title": "ENVIRONMENT", "home.quick": "QUICK ACTIONS",
     "home.recent": "RECENT BUILDS",
-    "home.nomount": "No mounting", "home.noadmin": "No admin",
     "home.c1t": "BUILD IMAGE", "home.c1d": "Turn a game dump into exFAT, ffpkg or PFS",
     "home.c2t": "AUTO BACKPORT", "home.c2d": "Match game SDK to the selected PS5 firmware",
     "home.c3t": "PAYLOADS", "home.c3d": "Choose a compatible built-in payload and send it",
@@ -143,15 +142,15 @@ window.I18N = {
     "dialog.backup.note": "The original file is backed up and verified before replacement.",
     "btn.cancel": "CANCEL", "btn.confirm": "CONFIRM",
     // about
-    "about.p1": "A modern, mount-free rebuild of exFAT Image Builder.",
-    "about.p2": "Images are serialized directly: no OSFMount, no drive letters, no administrator rights, and no locale-dependent output parsing.",
+    "about.p1": "A toolkit for building, converting, inspecting and managing PS5 game-dump images.",
+    "about.p2": "Builds exFAT, PFS (.ffpfsc) and UFS (.ffpkg) images, with backport / SDK downgrade, a payload library, and PS5 console tools.",
     "about.license": "Licensed GPL-3.0, following MkPFS upstream.",
     "about.payloads": "PAYLOAD PROJECT CREDITS",
     "about.payloads.hint": "Thanks to every upstream payload project included in the catalog.",
     "about.payloads.community": "Community project",
     // runtime messages
     "demo": "DEMO MODE — NO BRIDGE",
-    "msg.hello": "PS5 Image Forge online. No mounts, no admin, no locale bugs.",
+    "msg.hello": "PS5 Image Forge online. Ready to build, convert and manage PS5 game-dump images.",
     "msg.need_source": "Select a source directory first.",
     "msg.need_image": "Select an image file first.",
     "msg.need_dest": "Select a destination folder first.",
@@ -199,7 +198,7 @@ window.I18N = {
   },
 
   zh: {
-    "tagline": "免挂载镜像编译器",
+    "tagline": "PS5 镜像工具集",
     "nav.grp.build": "构建", "nav.grp.manage": "管理",
     "nav.grp.ps5": "PS5", "nav.grp.system": "系统",
     "nav.home": "首页", "nav.build": "构建", "nav.extract": "解包",
@@ -210,7 +209,6 @@ window.I18N = {
     "tag.target": "目标", "tag.pipeline": "格式", "tag.telemetry": "进度",
     "tag.console": "控制台", "tag.connection": "连接", "tag.folders": "目录",
     "home.title": "运行环境", "home.quick": "快捷操作", "home.recent": "最近构建",
-    "home.nomount": "无需挂载", "home.noadmin": "无需管理员",
     "home.c1t": "构建镜像", "home.c1d": "把游戏 dump 转成 exFAT / ffpkg / PFS",
     "home.c2t": "自动 Backport", "home.c2d": "根据所选 PS5 固件匹配游戏 SDK",
     "home.c3t": "Payload", "home.c3d": "选择兼容的内置 payload 并发送",
@@ -327,14 +325,14 @@ window.I18N = {
     "dialog.restore.title": "确认恢复原版", "dialog.restore.note": "恢复前会把当前已修改文件保留为下一代备份 ZIP。",
     "dialog.backup.note": "替换前会先备份并逐字节验证原始文件。",
     "btn.cancel": "取消", "btn.confirm": "确认执行",
-    "about.p1": "exFAT Image Builder 的现代化免挂载重构版。",
-    "about.p2": "镜像字节直接序列化：不用 OSFMount、不占盘符、不需管理员权限，也不解析随语言变化的输出。",
+    "about.p1": "用于构建、转换、检视与管理 PS5 游戏 dump 镜像的工具集。",
+    "about.p2": "支持构建 exFAT、PFS（.ffpfsc）与 UFS（.ffpkg）镜像，含 Backport / SDK 降级、Payload 库，以及 PS5 主机工具。",
     "about.license": "采用 GPL-3.0，跟随 MkPFS 上游。",
     "about.payloads": "PAYLOAD 项目致谢",
     "about.payloads.hint": "感谢内置目录中使用到的所有上游 Payload 项目与作者。",
     "about.payloads.community": "社区项目",
     "demo": "演示模式 — 无后端",
-    "msg.hello": "PS5 Image Forge 已就绪。零挂载、零管理员、零本地化炸弹。",
+    "msg.hello": "PS5 Image Forge 已就绪。可构建、转换与管理 PS5 游戏 dump 镜像。",
     "msg.need_source": "请先选择源目录。",
     "msg.need_image": "请先选择镜像文件。",
     "msg.need_dest": "请先选择目标文件夹。",

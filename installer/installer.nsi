@@ -83,7 +83,7 @@ VIAddVersionKey "LegalCopyright"  "GPL-3.0"
 !define MUI_UNWELCOMEFINISHPAGE_BITMAP "assets\welcome.bmp"
 
 !define MUI_WELCOMEPAGE_TITLE "PS5 Image Forge"
-!define MUI_WELCOMEPAGE_TEXT  "Mount-free exFAT / PFS / UFS image builder for PS5 game dumps — with backport, a payload library and console tools.$\r$\n$\r$\nThis will install ${PRODUCT_NAME} ${VERSION} on your computer.$\r$\n$\r$\nClick Next to continue."
+!define MUI_WELCOMEPAGE_TEXT  "A toolkit for building, converting and managing PS5 game-dump images — with backport, a payload library and console tools.$\r$\n$\r$\nThis will install ${PRODUCT_NAME} ${VERSION} on your computer.$\r$\n$\r$\nClick Next to continue."
 
 !define MUI_FINISHPAGE_RUN            "$INSTDIR\${APP_EXE}"
 !define MUI_FINISHPAGE_RUN_TEXT       "Launch ${PRODUCT_NAME}"

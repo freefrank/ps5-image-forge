@@ -1,6 +1,6 @@
 # PS5 Image Forge
 
-Mount-free image tooling for PS5 game dumps — a modern rewrite of exFAT Image Builder.
+A toolkit for building, converting, inspecting and managing PS5 game-dump images.
 
 **English** | [简体中文](#ps5-image-forge-中文)
 
@@ -14,17 +14,6 @@ Prebuilt binaries are attached to each [release](https://github.com/freefrank/ps
 - **Windows installer** — `PS5-Image-Forge-Setup-<version>.exe`.
 - **Linux AppImage** — `PS5-Image-Forge-<version>-x86_64.AppImage` (needs the host's `libwebkit2gtk-4.1`).
 
-## Why the rewrite
-
-The original build pipeline was **OSFMount (drive letter) + format.com + robocopy**. In real use it exposed four structural problems:
-
-| Problem | Cause | What this tool does |
-|---|---|---|
-| A successful image gets deleted on non-English Windows | The robocopy summary parser only recognizes the English `Files :` | No robocopy — image bytes are written directly |
-| Requires admin rights; UAC elevation drops the caller's PATH | OSFMount mounting needs elevation | No mounting — runs with normal privileges |
-| Mounted drive letter clashes with WSL / network drives (e.g. `Z:`) | Mount points grab letters in order | There is no mount step |
-| Two instances delete each other's in-progress image | The teardown check removes "suspicious" output | Writes `.part` then atomically renames; never deletes a file it did not create this run |
-
 ## Features
 
 | Page | Description |
@@ -32,7 +21,7 @@ The original build pipeline was **OSFMount (drive letter) + format.com + robocop
 | **Home** | Environment status, shortcuts, recent builds |
 | **Build** | dump → exFAT / ffpkg / PFS, with an optional intermediate format and live telemetry |
 | **Extract** | Any image format → a directory |
-| **Inspect** | Read image structure and file tree without mounting |
+| **Inspect** | Read image structure and file tree, read-only |
 | **Library** | Scan and browse source dumps and built images |
 | **History** | Build records, including failure reasons |
 | **PS5 Manager** | Scan the common jailbreak service ports on one console and decide whether it is a jailbroken PS5; the IP is entered once and the FTP / Kernel Log / Payload pages stay in sync |
@@ -149,7 +138,7 @@ GPL-3.0 (following [MkPFS](https://github.com/PSBrew/MkPFS) upstream). The UFS2T
 
 # PS5 Image Forge（中文）
 
-PS5 游戏 dump 镜像工具 —— exFAT Image Builder 的现代化免挂载重构版。
+用于构建、转换、检视与管理 PS5 游戏 dump 镜像的工具集。
 
 [English](#ps5-image-forge) | **简体中文**
 
@@ -161,17 +150,6 @@ PS5 游戏 dump 镜像工具 —— exFAT Image Builder 的现代化免挂载重
 - **Windows 安装版** —— `PS5-Image-Forge-Setup-<版本>.exe`。
 - **Linux AppImage** —— `PS5-Image-Forge-<版本>-x86_64.AppImage`（需宿主的 `libwebkit2gtk-4.1`）。
 
-## 为什么重写
-
-原工具的构建管线是 **OSFMount 挂盘符 + format.com + robocopy**，实际使用中暴露了四个结构性问题：
-
-| 问题 | 原因 | 本工具的做法 |
-|---|---|---|
-| 非英文 Windows 上成功的镜像被误删 | 解析 robocopy 摘要只认英文 `Files :` | 不用 robocopy，直接写镜像字节 |
-| 必须管理员权限，UAC 自提权丢弃调用方 PATH | OSFMount 挂载需要提权 | 不挂载，普通权限即可 |
-| 挂载盘符与 WSL / 网络盘冲突（如 Z:） | 挂载点按序抢占盘符 | 没有挂载这一步 |
-| 两个实例互删对方正在写的镜像 | 收尾检查删除“可疑”输出 | 写 `.part` 后原子改名；从不删除本次运行没创建的文件 |
-
 ## 功能
 
 | 页面 | 说明 |
@@ -179,7 +157,7 @@ PS5 游戏 dump 镜像工具 —— exFAT Image Builder 的现代化免挂载重
 | **首页** | 环境状态、快捷入口、最近构建 |
 | **构建** | dump → exFAT / ffpkg / PFS，PFS 可选中间格式，实时遥测 |
 | **解包** | 任意格式镜像 → 目录 |
-| **检视** | 读取镜像结构与文件树，不挂载 |
+| **检视** | 只读读取镜像结构与文件树 |
 | **游戏库** | 扫描并浏览源 dump 与已构建镜像 |
 | **历史** | 构建记录（含失败原因） |
 | **PS5 Manager** | 扫描一台主机上的常用越狱服务端口，判定是否为越狱 PS5；IP 一处填写，FTP / 内核日志 / Payload 三页自动同步 |
