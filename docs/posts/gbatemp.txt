@@ -1,0 +1,58 @@
+[SIZE=5][B]I wrote a PS5 game image tool[/B][/SIZE]
+
+Hi all — I've been building [B]PS5 Image Forge[/B], a toolkit for building,
+converting, inspecting and managing PS5 game-dump images. It has both a GUI
+and a CLI, and it's free and open source (GPL-3.0).
+
+[IMG]https://raw.githubusercontent.com/freefrank/ps5-image-forge/master/docs/screenshots/home.png[/IMG]
+
+[B]What it does[/B]
+[LIST]
+[*][B]Build[/B] a game dump into an image: raw exFAT, PFS (block-compressed
+   [ICODE].ffpfsc[/ICODE]), or UFS ([ICODE].ffpkg[/ICODE]).
+[*][B]Extract[/B] any of those formats back to a folder, and [B]Inspect[/B]
+   an image's structure/file tree read-only.
+[*][B]Auto Backport[/B]: restore SELF/FSELF, lower the SDK (1.00–10.00),
+   fake-sign, verify, and write back. A verified [ICODE].bak.zip[/ICODE] is
+   always created first; bare ELFs and whole images are supported too.
+[*][B]Payload library[/B]: reads each payload's info straight from the ELF
+   (arch, build-id, capabilities), plus a bundled catalog that's SHA-256
+   verified before use.
+[*][B]Console tools[/B]: connection check / port scan to spot a jailbroken
+   PS5, an FTP browser, live kernel-log tail, and a payload sender.
+[/LIST]
+
+[B]Build[/B] — dump → exFAT / ffpkg / PFS
+[IMG]https://raw.githubusercontent.com/freefrank/ps5-image-forge/master/docs/screenshots/build.png[/IMG]
+
+[B]Payloads[/B] — bundled catalog, SHA-256 verified
+[IMG]https://raw.githubusercontent.com/freefrank/ps5-image-forge/master/docs/screenshots/payload.png[/IMG]
+
+[B]Backport[/B] — SELF/FSELF restore, SDK downgrade, fake-sign, verify
+[IMG]https://raw.githubusercontent.com/freefrank/ps5-image-forge/master/docs/screenshots/backport.png[/IMG]
+
+[B]Formats[/B]
+[LIST]
+[*][ICODE].exfat[/ICODE] — pure-Python serializer (no mounting, no admin)
+[*][ICODE].ffpfsc[/ICODE] — PFS with PFSC deflate compression
+[*][ICODE].ffpkg[/ICODE] — UFS via a bundled UFS2Tool (needs .NET 8)
+[/LIST]
+
+[B]Downloads[/B] (v0.7.4, prebuilt)
+[LIST]
+[*]Windows — portable single-file exe, or an installer
+[*]Linux — AppImage (needs the host's libwebkit2gtk-4.1)
+[*]macOS — DMG (Apple Silicon; unsigned, a HOW-TO-OPEN txt is included)
+[/LIST]
+[URL]https://github.com/freefrank/ps5-image-forge/releases/latest[/URL]
+
+[B]Source[/B]: [URL]https://github.com/freefrank/ps5-image-forge[/URL]
+
+[B]Heads-up / testers welcome[/B]: the on-console network features
+(FTP / kernel log / payload sending) are validated against a mock server but
+haven't been tested against a real PS5 yet — if you try them on hardware, I'd
+love to hear how it goes. Image building/backport are solid and covered by a
+large test suite.
+
+Credits: MkPFS (PSBrew), UFS2Tool, and make_fself from ps5-payload-dev/sdk.
+Feedback, bug reports and PRs very welcome.
