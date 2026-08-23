@@ -63,6 +63,7 @@ class Settings:
     lang: str = ""            # "" = follow system
     theme_accent: str = "cyan"
     ui_scale: float = 1.0
+    reduce_effects: bool = False   # "smooth mode": drop animations/glows
 
     # exfat
     cluster_size: int = 65536  # 0 = mkpfs auto; default 64 KiB

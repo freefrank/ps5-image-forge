@@ -93,6 +93,8 @@ window.I18N = {
     "extract.hint": "Supports .exfat, .ffpkg and .ffpfsc",
     // settings
     "set.paths": "DEFAULT PATHS", "set.libdirs": "LIBRARY", "set.scale": "UI SCALE",
+    "set.smooth": "SMOOTH MODE",
+    "set.smooth.hint": "Drops animations and glows for a lag-free window",
     "set.workdir": "WORK DIR",
     "set.workdir.ph": "Blank = beside the output (put on an SSD)",
     "set.workdir.hint": "Scratch space for IO-heavy work (compress, unpack/repack). Point it at a fast SSD when your library lives on an HDD.",
@@ -276,6 +278,8 @@ window.I18N = {
     "msg.scan_failed": "扫描失败: ",
     "extract.hint": "支持 .exfat、.ffpkg 和 .ffpfsc",
     "set.paths": "默认路径", "set.libdirs": "库目录", "set.scale": "界面缩放",
+    "set.smooth": "流畅模式",
+    "set.smooth.hint": "关闭动画与霓虹光效，换取无卡顿的窗口",
     "set.workdir": "工作目录",
     "set.workdir.ph": "留空 = 输出旁边（建议放 SSD）",
     "set.workdir.hint": "重 IO 操作（压缩、解包/重打包）的临时/中转空间。当库位于 HDD 时，指向一个高速 SSD。",

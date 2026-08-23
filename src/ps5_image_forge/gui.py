@@ -119,7 +119,14 @@ def main() -> int:
     )
     api._window = window
     window.events.shown += lambda: _install_native_resize(window)
-    webview.start()
+    # Force the Edge Chromium (WebView2) backend. Letting pywebview auto-pick
+    # can silently fall back to the ancient MSHTML/IE engine, which makes the
+    # whole UI feel sluggish. Fall back to the default only if WebView2 is
+    # genuinely unavailable.
+    try:
+        webview.start(gui="edgechromium")
+    except Exception:
+        webview.start()
     return 0
 
 

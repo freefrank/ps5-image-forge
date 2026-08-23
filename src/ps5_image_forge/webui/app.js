@@ -1653,6 +1653,7 @@ async function loadSettings() {
   S.verify = s.verify_after_build !== false;
   $("opt-verify").classList.toggle("on", S.verify);
   $("set-compress").classList.toggle("on", s.pfs_compress !== false);
+  applyReduceEffects(!!s.reduce_effects);
   // seed the working pages from saved defaults
   if (s.output_dir && !$("output").value) $("output").value = s.output_dir;
   if (s.library_dirs && s.library_dirs.length) $("lib-folders").value = s.library_dirs.join(";");
@@ -1665,6 +1666,16 @@ async function loadSettings() {
   if (s.payload_dir) { $("pl-dir").value = s.payload_dir; scanPayloads(); }
 }
 $("set-compress").onclick = () => $("set-compress").classList.toggle("on");
+function applyReduceEffects(on) {
+  $("set-reduce-fx").classList.toggle("on", on);
+  document.documentElement.classList.toggle("no-fx", on);
+}
+$("set-reduce-fx").onclick = async () => {
+  const on = !$("set-reduce-fx").classList.contains("on");
+  applyReduceEffects(on);                 // instant feedback
+  const b = bridge();
+  if (b) await b.save_settings({ reduce_effects: on });
+};
 $("set-scale").onchange = async () => {
   const scale = applyUiScale($("set-scale").value);
   const b = bridge();
@@ -1683,6 +1694,7 @@ $("set-save").onclick = async () => {
     ui_scale: +$("set-scale").value,
     cluster_size: +$("set-cluster").value,
     verify_after_build: S.verify,
+    reduce_effects: $("set-reduce-fx").classList.contains("on"),
     pfs_compress: $("set-compress").classList.contains("on"),
     pfs_level: +$("set-level").value,
     pfs_threads: +$("set-threads").value,

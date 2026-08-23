@@ -44,6 +44,8 @@ class Bridge:
         self._scan_cancel: threading.Event | None = None
         self._dl_cancel: threading.Event | None = None
         self._downloading: threading.Thread | None = None
+        self._prog_at = 0.0
+        self._prog_phase = ""
 
     # ── plumbing ──────────────────────────────────────────────────
 
@@ -61,6 +63,19 @@ class Bridge:
         self._js("onLog", msg, cls)
 
     def _progress(self, ev: core.ProgressEvent) -> None:
+        # Each push is a synchronous IPC into the webview. A fast transfer emits
+        # hundreds of events per second (256 KiB chunks), which floods the UI
+        # thread and makes the window stutter. Coalesce to ~20 fps; always let
+        # phase changes, command echoes and the final 100% through.
+        now = time.monotonic()
+        detail = ev.detail or ""
+        final = ev.total > 0 and ev.done >= ev.total
+        if (not final and ev.phase == self._prog_phase
+                and not detail.startswith("$ ")
+                and now - self._prog_at < 0.05):
+            return
+        self._prog_at = now
+        self._prog_phase = ev.phase
         self._js("onProgress", {"phase": ev.phase, "done": ev.done,
                                 "total": ev.total, "detail": ev.detail})
 

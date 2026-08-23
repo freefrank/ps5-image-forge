@@ -98,6 +98,25 @@ html.dragging *, html.dragging *::before, html.dragging *::after {
   transition: none !important;
 }
 
+/* Performance: honour the OS "reduce motion" setting, and offer an in-app
+   "smooth mode" (html.no-fx) that drops the always-on scanline, the decorative
+   animations and the expensive neon glows for a lag-free window on weak GPUs. */
+@media (prefers-reduced-motion: reduce) {
+  #sweep { display: none; }
+  *, *::before, *::after {
+    animation-duration: .001ms !important; animation-iteration-count: 1 !important;
+    transition-duration: .001ms !important;
+  }
+}
+html.no-fx #sweep { display: none; }
+html.no-fx *, html.no-fx *::before, html.no-fx *::after {
+  animation: none !important;
+  text-shadow: none !important;
+  transition-duration: .08s !important;
+}
+html.no-fx .panel, html.no-fx button, html.no-fx .card,
+html.no-fx .bar .fill, html.no-fx .pill { box-shadow: none !important; }
+
 /* ── title bar ───────────────────────────────────────────── */
 #titlebar {
   height: var(--bar-h); display: flex; align-items: center; gap: 12px;
@@ -269,9 +288,7 @@ button.danger:hover:not(:disabled) { color: #ffd7ea;
 /* ── log / console ───────────────────────────────────────── */
 .logbox { height: 190px; overflow-y: auto; font-size: 11.5px; line-height: 1.6;
   scrollbar-width: thin; scrollbar-color: var(--cyan-dim) transparent; }
-.logbox .ln { opacity: 0; transform: translateX(-5px); animation: lnin .28s ease forwards;
-  white-space: pre-wrap; word-break: break-all; }
-@keyframes lnin { to { opacity: 1; transform: none; } }
+.logbox .ln { white-space: pre-wrap; word-break: break-all; }
 .logbox .ln::before { content: "▸ "; color: var(--cyan-dim); }
 .logbox .ln.err { color: var(--magenta); }
 .logbox .ln.ok  { color: var(--ok); }
