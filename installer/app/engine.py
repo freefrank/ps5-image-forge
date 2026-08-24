@@ -115,6 +115,15 @@ def installed_size() -> int:
     return sum(p.stat().st_size for p in dest.rglob("*") if p.is_file())
 
 
+def registered_dir() -> Path | None:
+    """The location a previous install recorded, if any."""
+    try:
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, REG_APP) as key:
+            return Path(str(winreg.QueryValueEx(key, "InstallDir")[0]))
+    except OSError:
+        return None
+
+
 def installed_version() -> str | None:
     try:
         with winreg.OpenKey(winreg.HKEY_CURRENT_USER, REG_APP) as key:
@@ -206,14 +215,17 @@ def _make_shortcuts(specs: Iterable[tuple[Path, Path, str]]) -> None:
 # ------------------------------------------------------------------- install
 
 def install(*, desktop: bool = False, self_image: Path | None = None,
+            dest: Path | None = None,
             log: Logger = _noop_log, progress: Progress = _noop_progress) -> Path:
     """Copy the payload into place, register it, and return the install dir.
 
     ``self_image`` is the outer setup exe (handed over as --self= by setup.nsi).
     It is copied in as uninstall.exe so the uninstaller re-enters this very same
     wrapper — one binary, one code path, nothing to keep in sync.
+
+    ``dest`` overrides the default per-user location when the user picks one.
     """
-    dest = install_dir()
+    dest = Path(dest) if dest else install_dir()
     files = payload_files()
     if not files:
         raise RuntimeError(f"installer payload is empty ({payload_dir()})")
@@ -288,7 +300,14 @@ def _write_registry(dest: Path) -> None:
 
 def uninstall(*, self_image: Path | None = None, log: Logger = _noop_log,
               progress: Progress = _noop_progress) -> None:
-    dest = install_dir()
+    # Where install() actually put things, which is not the default location
+    # when the user picked their own. Fall back to the outer image's own folder
+    # (uninstall.exe lives in the install dir) before guessing the default.
+    dest = registered_dir()
+    if dest is None and self_image and self_image.name.lower() == UNINST_EXE:
+        dest = self_image.parent
+    if dest is None:
+        dest = install_dir()
     if app_is_running(dest):
         raise AppRunningError(PRODUCT)
 

@@ -91,7 +91,11 @@ body::before {   /* CRT lines */
 .win-btns #win-close:hover { color: #fff; background: var(--magenta); }
 
 /* ── stages ──────────────────────────────────────────────── */
-#body { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 14px 16px 4px; }
+/* No scrollbar here: the window shrink-wraps to the live stage (see fitWindow),
+   and the only thing that can outgrow its box — the install log — scrolls
+   inside .logbox. Leaving this auto put a scrollbar down the whole panel
+   whenever the measured height rounded a pixel short. */
+#body { flex: 1 1 auto; min-height: 0; overflow: hidden; padding: 14px 16px 4px; }
 .stage { display: none; }
 .stage.on { display: block; animation: pagein .28s ease; }
 @keyframes pagein { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; } }
@@ -118,6 +122,22 @@ body::before {   /* CRT lines */
   text-align: right; align-self: center; }
 .facts dd { color: var(--text); overflow-wrap: anywhere; }
 .facts dd.path { color: var(--amber); }
+
+/* While the window is being dragged nothing may animate: every frame spent
+   painting here is a frame the move loop does not get. */
+html.dragging *, html.dragging *::before, html.dragging *::after {
+  animation-play-state: paused !important;
+  transition: none !important;
+}
+
+/* install location: label, the path itself, and the picker */
+.dest-row { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
+.dest-row .field { color: var(--text-dim); font-size: 10px; letter-spacing: 1.5px;
+  width: 74px; flex: none; }
+.dest-row .path { color: var(--amber); flex: 1; min-width: 0;
+  border: 1px solid var(--cyan-dim); padding: 5px 8px; font-size: 11.5px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; direction: rtl;
+  text-align: left; }
 
 .row { display: flex; align-items: center; gap: 9px; margin: 6px 0; flex-wrap: wrap; }
 .row.actions { margin-top: 12px; }

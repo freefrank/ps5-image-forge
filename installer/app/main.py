@@ -26,6 +26,9 @@ from pathlib import Path
 
 import engine
 
+WINDOW_W = 640
+WINDOW_MIN_H = 240
+
 
 def _parse(argv: list[str]) -> dict:
     opts = {"self": None, "auto": False, "uninstall": False}
@@ -97,7 +100,13 @@ class Api:
         self._done: bool | None = None
         self._error = ""
         self._lock = threading.Lock()
-        self.window = None
+        # Underscore on purpose. pywebview walks the js_api object to build the
+        # JS-side function table, and it recurses: a public ``self.window``
+        # drags the entire WinForms control tree into it, which both slows every
+        # call to a crawl and shadows the real methods. The main app hit this
+        # exact bug (see bridge.py).
+        self._window = None
+        self._target: Path | None = None
 
     # -- state ------------------------------------------------------------
     def state(self) -> dict:
@@ -106,15 +115,47 @@ class Api:
             "product": engine.PRODUCT,
             "version": engine.version(),
             "installed": engine.installed_version(),
-            "dir": str(engine.install_dir()),
+            "dir": str(self._dest()),
             "size": sum(p.stat().st_size for p in engine.payload_files()),
             "on_disk": engine.installed_size(),
             "running": engine.app_is_running(),
         }
 
+    def _dest(self) -> Path:
+        return self._target or engine.install_dir()
+
+    def browse(self) -> str:
+        """Folder picker for the install location; returns the chosen path."""
+        import webview
+        if self._window is None:
+            return str(self._dest())
+        picked = self._window.create_file_dialog(
+            webview.FOLDER_DIALOG, directory=str(self._dest().parent))
+        if picked:
+            # The dialog yields the parent the user browsed to; keep the
+            # product folder so we never scatter files into e.g. Documents.
+            chosen = Path(picked[0] if isinstance(picked, (list, tuple)) else picked)
+            self._target = (chosen if chosen.name == engine.PRODUCT
+                            else chosen / engine.PRODUCT)
+        return str(self._dest())
+
     def recheck(self) -> bool:
         """'Check again' after the user closes the app."""
         return engine.app_is_running()
+
+    def fit(self, height: float) -> None:
+        """Shrink-wrap the window around the current stage.
+
+        The stages differ by more than 250 px — a window tall enough for the
+        'app is running' warning is two-thirds empty on the confirmation step.
+        The page measures itself and calls this after each change.
+        """
+        if self._window is None:
+            return
+        try:
+            self._window.resize(WINDOW_W, max(WINDOW_MIN_H, int(height)))
+        except Exception:                              # noqa: BLE001
+            pass                                       # backend without resize
 
     def poll(self) -> dict:
         with self._lock:
@@ -143,6 +184,7 @@ class Api:
                                  log=self._log, progress=self._progress)
             else:
                 engine.install(desktop=desktop, self_image=self._opts["self"],
+                               dest=self._target,
                                log=self._log, progress=self._progress)
             with self._lock:
                 self._done = True
@@ -156,7 +198,7 @@ class Api:
                 self._done, self._error = False, str(exc)
 
     def launch(self) -> bool:
-        exe = engine.install_dir() / engine.APP_EXE
+        exe = self._dest() / engine.APP_EXE
         if not exe.is_file():
             return False
         os.startfile(exe)  # noqa: S606 — our own freshly written exe
@@ -164,12 +206,12 @@ class Api:
 
     # -- frameless window chrome -----------------------------------------
     def minimize(self) -> None:
-        if self.window:
-            self.window.minimize()
+        if self._window:
+            self._window.minimize()
 
     def close(self) -> None:
-        if self.window:
-            self.window.destroy()
+        if self._window:
+            self._window.destroy()
 
 
 def _run_gui(opts: dict, removing: bool) -> int:
@@ -177,11 +219,11 @@ def _run_gui(opts: dict, removing: bool) -> int:
 
     api = Api(opts, removing)
     here = Path(getattr(sys, "_MEIPASS", Path(__file__).parent))
-    api.window = webview.create_window(
+    api._window = webview.create_window(
         f"{engine.PRODUCT} Setup",
         (here / "webui" / "index.html").as_uri(),
         js_api=api,
-        width=640, height=520, resizable=False,
+        width=WINDOW_W, height=470, resizable=False,
         background_color="#070b14",
         frameless=True, easy_drag=False,
     )
