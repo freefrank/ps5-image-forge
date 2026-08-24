@@ -107,7 +107,6 @@ ever fails in CI.
 | `app/webui/` | The UI — palette, wordmark, grid and scanlines lifted from `src/ps5_image_forge/webui/app.css`. |
 | `build_setup.ps1` | One-shot build (below). UTF-8 **with BOM**, and no non-ASCII inside quoted strings — see the note in its header. |
 | `make_assets.py` | Generates the branding art in `assets/`. Needs Pillow. |
-| `installer.nsi`, `build_installer.ps1` | The previous MUI2 wizard. Kept for reference; nothing builds them. |
 
 `assets/`, `build/` and `dist/` are git-ignored.
 

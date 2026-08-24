@@ -314,6 +314,18 @@ jobs:
         with:
           path: assets
 
+      - name: Checksums
+        # Unsigned binaries for a homebrew tool: a manifest users can verify
+        # against is the cheapest trust signal available.
+        run: |
+          # Artifacts land in per-job subdirectories; flatten so the manifest
+          # names match the filenames people download.
+          cd assets
+          find . -type f ! -name SHA256SUMS -exec mv -t . {} +
+          find . -mindepth 1 -type d -empty -delete
+          sha256sum * > SHA256SUMS
+          cat SHA256SUMS
+
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v3
         with:
@@ -329,6 +341,10 @@ jobs:
             | `PS5-Image-Forge-Setup-*.exe` | Windows — installer |
             | `PS5-Image-Forge-*-x86_64.AppImage` | Linux — AppImage (x86_64) |
             | `PS5-Image-Forge-*-macos-arm64.dmg` | macOS — DMG (Apple Silicon) |
+            | `SHA256SUMS` | Checksums for every asset above |
+
+            Verify a download with `sha256sum -c SHA256SUMS --ignore-missing`
+            (Linux/macOS) or `Get-FileHash <file> -Algorithm SHA256` (Windows).
 
             **macOS note:** the app is unsigned, so Gatekeeper blocks the first
             launch — see `HOW-TO-OPEN-macOS.txt` (also included in the DMG's
