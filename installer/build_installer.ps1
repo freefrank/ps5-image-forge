@@ -42,28 +42,7 @@ Write-Host "PS5 Image Forge $Version" -ForegroundColor Cyan
 $Python = Join-Path $RepoRoot '.venv\Scripts\python.exe'
 if (-not (Test-Path $Python)) { $Python = 'python' }
 
-# --- 1. build the exe if needed -------------------------------------------
-if ($Build -or -not (Test-Path $SrcExe)) {
-    Write-Host '==> Building single-file exe with PyInstaller' -ForegroundColor Yellow
-    $spec = Join-Path $RepoRoot 'PS5-Image-Forge.spec'
-    Push-Location $RepoRoot
-    try {
-        if (Test-Path $spec) {
-            & $Python -m PyInstaller --noconfirm $spec
-        } else {
-            & $Python -m PyInstaller --noconfirm --onefile --windowed --name PS5-Image-Forge `
-                --collect-submodules mkpfs --collect-all webview `
-                --add-data 'src/ps5_image_forge/webui;ps5_image_forge/webui' `
-                --add-data 'src/ps5_image_forge/payload_catalog.json;ps5_image_forge' `
-                --add-data 'vendor/payloads;ps5_image_forge/bundled_payloads' `
-                --add-data 'vendor/ufs2tool;ufs2tool' entry.py
-        }
-        if ($LASTEXITCODE -ne 0) { throw "PyInstaller failed ($LASTEXITCODE)" }
-    } finally { Pop-Location }
-}
-if (-not (Test-Path $SrcExe)) { throw "Missing app exe: $SrcExe" }
-
-# --- 2. branding art -------------------------------------------------------
+# --- 1. branding art (before the exe, so the spec can embed the icon) ------
 # Assets need Pillow; use whichever interpreter has it (venv or system).
 $AssetPython = $null
 foreach ($cand in @($Python, 'python')) {
@@ -82,6 +61,28 @@ if (-not $AssetPython) {
 Write-Host "==> Generating branding assets ($AssetPython)" -ForegroundColor Yellow
 & $AssetPython (Join-Path $InstallerDir 'make_assets.py') --version $Version
 if ($LASTEXITCODE -ne 0) { throw "Asset generation failed ($LASTEXITCODE)" }
+
+# --- 2. build the exe if needed -------------------------------------------
+if ($Build -or -not (Test-Path $SrcExe)) {
+    Write-Host '==> Building single-file exe with PyInstaller' -ForegroundColor Yellow
+    $spec = Join-Path $RepoRoot 'PS5-Image-Forge.spec'
+    Push-Location $RepoRoot
+    try {
+        if (Test-Path $spec) {
+            & $Python -m PyInstaller --noconfirm $spec
+        } else {
+            & $Python -m PyInstaller --noconfirm --onefile --windowed --name PS5-Image-Forge `
+                --icon installer/assets/installer.ico `
+                --collect-submodules mkpfs --collect-all webview `
+                --add-data 'src/ps5_image_forge/webui;ps5_image_forge/webui' `
+                --add-data 'src/ps5_image_forge/payload_catalog.json;ps5_image_forge' `
+                --add-data 'vendor/payloads;ps5_image_forge/bundled_payloads' `
+                --add-data 'vendor/ufs2tool;ufs2tool' entry.py
+        }
+        if ($LASTEXITCODE -ne 0) { throw "PyInstaller failed ($LASTEXITCODE)" }
+    } finally { Pop-Location }
+}
+if (-not (Test-Path $SrcExe)) { throw "Missing app exe: $SrcExe" }
 
 # --- 3. locate makensis ----------------------------------------------------
 $makensis = (Get-Command makensis -ErrorAction SilentlyContinue).Source

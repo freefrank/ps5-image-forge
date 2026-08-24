@@ -32,6 +32,13 @@ jobs:
           pip install pyinstaller pillow
           pip install .
 
+      - name: Branding assets
+        shell: pwsh
+        # Must run before the exe build so the spec can embed installer/assets/installer.ico
+        run: |
+          $v = "${{ github.ref_name }}".TrimStart('v')
+          python installer/make_assets.py --version $v
+
       - name: Build single-file exe
         shell: pwsh
         run: pyinstaller --noconfirm PS5-Image-Forge.spec
