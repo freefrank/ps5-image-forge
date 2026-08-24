@@ -1573,11 +1573,7 @@ $("bp-restore").onclick = async () => {
 
 async function scanBackport() {
   const folder = $("bp-dir").value.trim();
-  if (!folder) {
-    $("bp-summary").textContent = t("bp.no_folder");
-    log("bp-log", t("bp.no_folder"), "err");
-    return;
-  }
+  if (!folder) { log("bp-log", t("bp.no_folder"), "err"); return; }
   showGameInfo("bp-info", folder);
   if (isImagePath(folder)) {
     // Scanning reads a folder's files; an image is edited in place instead,
@@ -1603,33 +1599,24 @@ async function scanBackport() {
     });
     return;
   }
-  // Immediate, visible feedback: scanning a large folder can take a moment,
-  // and the app log lives in the (collapsed) drawer, so drive the on-page
-  // summary line and the button state here.
+  // Scanning a large folder can take a moment; show it on the button so the
+  // click doesn't look like a no-op.
   const scanBtn = $("bp-scan");
   scanBtn.disabled = true;
-  $("bp-summary").textContent = t("bp.scanning", { folder });
+  scanBtn.textContent = t("btn.scanning");
   try {
     const r = await b.backport_scan(folder);
-    if (!r.ok) {
-      $("bp-summary").textContent = t("err.prefix") + (r.error || "");
-      log("bp-log", t("err.prefix") + r.error, "err");
-      return;
-    }
+    if (!r.ok) { log("bp-log", t("err.prefix") + r.error, "err"); return; }
     bpItems = r.items || [];
     bpBackups = r.backups || [];
     renderBackport();
     updateBackportBackups(r.restorable || 0);
-    const found = bpItems.length ||
-      (r.eligible || 0) + (r.signed || 0) + (r.skipped || 0);
-    $("bp-summary").textContent = found ? t("bp.summary", r) : t("bp.scan_empty");
+    $("bp-summary").textContent = t("bp.summary", r);
     $("bp-apply").disabled = !r.eligible;
-    log("bp-log", found ? t("bp.summary", r) : t("bp.scan_empty"));
-  } catch (e) {
-    $("bp-summary").textContent = t("err.prefix") + (e && e.message || e);
-    log("bp-log", t("err.prefix") + e, "err");
+    log("bp-log", t("bp.summary", r));
   } finally {
     scanBtn.disabled = false;
+    scanBtn.textContent = t("btn.scan");
   }
 }
 
