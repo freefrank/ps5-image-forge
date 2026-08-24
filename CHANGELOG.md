@@ -2,12 +2,53 @@
 
 All notable changes to PS5 Image Forge. Entries are grouped by the version-bump
 commits in the history; versions follow the `version` field in `pyproject.toml`
-(currently 0.7.4).
+(currently 0.7.5).
 
 本项目所有重要改动的记录。条目按历史中的版本号提交划分；版本号以
-`pyproject.toml` 的 `version` 字段为准（当前 0.7.4）。
+`pyproject.toml` 的 `version` 字段为准（当前 0.7.5）。
 
 ---
+
+## [0.7.5] — 2026-08-24
+
+### Added / 新增
+- A branded Windows setup app replaces the NSIS MUI2 wizard: a silent NSIS
+  self-extractor wrapped around a pywebview installer that reuses the app's
+  own shell. Per-user install (`%LOCALAPPDATA%\Programs` + HKCU), so no UAC
+  prompt. (`7a1de15`)
+  全新的 Windows 安装器取代 NSIS MUI2 向导：静默自解压壳套一个复用主程序外观的
+  pywebview 安装界面。装到用户目录、写 HKCU，无需管理员权限。
+- Setup asks the user to close the app when it is running instead of killing
+  it, with a "check again" button. The old installer ran `taskkill /F`,
+  discarding whatever was in flight. (`7a1de15`)
+  检测到主程序运行时提示用户关闭并提供「重新检测」，不再强杀进程。
+- Setup can pick the install folder, and detects an existing copy — showing
+  the installed version next to the new one and switching to update mode.
+  (`e2dc39c`, `24f012c`)
+  安装器可选择安装目录；检测到已有版本时并列显示新旧版本并切换为更新模式。
+- The Windows exe finally carries the app icon. (`e79b131`)
+  Windows exe 终于带上了应用图标。
+- macOS DMG build with a cyberpunk background, plus Gatekeeper instructions
+  shipped beside it. (`a22a933`)
+  新增 macOS DMG 构建（赛博朋克背景图），并随附 Gatekeeper 打开说明。
+
+### Changed / 变更
+- Backport scan reports progress on the SCAN button, which moved to the
+  Target SDK row. (`c75bee7`, `8d19c7f`, `c1ef089`)
+  Backport 扫描在 SCAN 按钮上显示进度，按钮移至 Target SDK 一行。
+- CI actions upgraded to their Node24 majors. (`a22a933`)
+  CI actions 升级到 Node24 版本。
+
+### Fixed / 修复
+- Setup's js_api held the window on a public attribute, which pywebview
+  recursed into — every bridge call crawled and the real methods were
+  shadowed, so the version never appeared and Install and Close did nothing.
+  (`e2dc39c`)
+  安装器把窗口存为公有属性，pywebview 递归遍历导致 bridge 调用极慢且方法被遮蔽，
+  表现为不显示版本、安装与关闭按钮失效。
+- Setup window now shrink-wraps the live stage instead of leaving a large
+  empty box, and dragging uses the main app's IPC throttle. (`e2dc39c`)
+  安装器窗口按当前步骤自适应高度，不再留大片空白；拖拽套用主程序的 IPC 节流。
 
 ## [0.7.4] — 2026-08-23
 

@@ -99,8 +99,8 @@ installer app (`build\setup-app`) → `makensis`. Output lands in
 
 ```powershell
 makensis /DSRCDIR=build\setup-app\ps5if-setup `
-         /DOUTFILE=dist\PS5-Image-Forge-Setup-0.7.4.exe `
-         /DAPPVER=0.7.4 /DICONFILE=installer\assets\installer.ico `
+         /DOUTFILE=dist\PS5-Image-Forge-Setup-0.7.5.exe `
+         /DAPPVER=0.7.5 /DICONFILE=installer\assets\installer.ico `
          /DINNER_EXE=ps5if-setup.exe installer\setup.nsi
 ```
 
