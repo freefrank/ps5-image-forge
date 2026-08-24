@@ -3,9 +3,9 @@
 本文件记录 PS5 Image Forge 的**当前状态**、**已确定的需求与设计决策**、**未完成的工作**。
 README 面向使用者，本文件面向继续开发的人（包括未来的我们自己）。
 
-- 版本：v0.7.4
-- 更新日期：2026-08-22
-- 测试：`142 passed`（`.venv/Scripts/python.exe -m pytest tests/ -q`）
+- 版本：v0.7.5
+- 更新日期：2026-08-24
+- 测试：`153 passed`（`.venv/Scripts/python.exe -m pytest tests/ -q`）
 
 ---
 
@@ -77,6 +77,46 @@ entry.py
 | `i18n.py` | 88 | 后端消息本地化 | — | 随其他测试覆盖 |
 | `webui/` | 1240 | 12 个页面 + 赛博朋克样式 + 前端 i18n | demo 模式 | ✅ |
 
+### 安装器（`installer/`）
+
+Windows setup 不是 NSIS 向导，而是**静默自解压壳 + 自绘品牌安装界面**，
+形式参照 AnotherVaporAuth：NSIS 全程不显示任何界面。
+
+```
+PS5-Image-Forge-Setup-<ver>.exe      setup.nsi，SilentInstall silent
+  └─ $PLUGINSDIR\setup\ps5if-setup.exe   安装器 App（PyInstaller onedir）
+       └─ _internal\payload\             PS5-Image-Forge.exe、LICENSE、VERSION
+```
+
+| 文件 | 职责 |
+|---|---|
+| `setup.nsi` | 静默壳：解压后 `ExecWait` 安装器并透传 `--self=$EXEPATH`，用 `SetErrorLevel` 回传退出码。**UTF-8 with BOM** |
+| `app/engine.py` | 安装 / 卸载 / 运行中检测，可无界面调用 |
+| `app/main.py` | 入口：参数解析、`--auto` 无人值守、pywebview 窗口与 js_api |
+| `app/webui/` | 界面，配色与外壳取自主程序 `webui/app.css` |
+| `build_setup.ps1` | 一步构建。**UTF-8 with BOM，且引号字符串内不要放非 ASCII** |
+| `make_assets.py` | 生成品牌素材（exe/安装器图标、DMG 背景、NSIS 位图），需 Pillow |
+
+关键约束（都是踩过的坑）：
+
+- **js_api 上的窗口引用必须是私有属性**（`self._window`）。pywebview 会递归遍历
+  js_api 对象生成 JS 函数表，公有 `self.window` 会把整棵 WinForms 控件树送下去 ——
+  调用慢到不可用，且**真实方法被遮蔽**（表现为版本不显示、按钮全部失效）。
+  与 `bridge.py` 同一个坑。
+- **拖拽必须节流**：pywebview 每个 mousemove 都是一次同步 IPC，不节流会打满 UI 线程。
+- **per-user 安装**：`%LOCALAPPDATA%\Programs` + HKCU，因此不触发 UAC。
+- **检测已有安装以文件为准**，注册表只提供版本号（注册表项可能丢失，但文件还在；
+  此时按更新处理并显示 unknown）。
+- **绝不强杀主程序**：检测到运行中就提示用户关闭并提供「重新检测」。
+- `uninstall.exe` 是外层 setup 的逐字节副本，靠 `--self=$EXEPATH` 复用同一个壳。
+
+### 发布（`.github/workflows/release.yml`）
+
+推送 `v*` tag 触发，产出 Windows 便携版 + 安装版、Linux AppImage、macOS DMG，
+四个 job 全绿后由 `release` job 发布 Release。每个平台都用 exe 的 `--selftest`
+作为质量门，Windows 另有安装 / 卸载两个 smoke test（校验文件、快捷方式、
+HKCU 注册项，以及 `uninstall.exe` 与 setup 的 SHA-256 一致）。
+
 ---
 
 ## 3. 已确定的需求与决策
@@ -133,8 +173,18 @@ entry.py
 .venv/Scripts/python.exe -m pytest tests/ -q
 ```
 
+打包 exe 走 spec（`PS5-Image-Forge.spec`，内含数据文件与 `installer/assets/icon.ico`
+图标；图标由 `installer/make_assets.py` 生成，**必须先跑素材再打包**）：
+
 ```bash
-python -m PyInstaller --onefile --windowed --name PS5-Image-Forge --collect-submodules mkpfs --collect-all webview --add-data "src/ps5_image_forge/webui;ps5_image_forge/webui" --add-data "src/ps5_image_forge/payload_catalog.json;ps5_image_forge" --add-data "vendor/payloads;ps5_image_forge/bundled_payloads" --add-data "vendor/ufs2tool;ufs2tool" entry.py
+python installer/make_assets.py --version 0.7.5
+python -m PyInstaller --noconfirm PS5-Image-Forge.spec
+```
+
+Windows 安装包（素材 → app exe → payload → 安装器 app → NSIS 壳，一步到位）：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File installer\build_setup.ps1
 ```
 
 UI 单独开发（无后端时进 demo 模式，用合成数据渲染全部界面）：
@@ -146,7 +196,7 @@ python -m http.server 8899 -d src/ps5_image_forge/webui
 `--selftest` 除了跑一遍构建/校验/压缩，还会 `catalog.load()` ——
 **打包后数据文件丢没丢，只有冻结的 exe 能证明**，import 通过不代表 JSON 进了 bundle。
 
-115 个测试覆盖：镜像构建/校验/**腐蚀检测**/逐字节解包往返、三格式流水线、
+153 个测试覆盖：镜像构建/校验/**腐蚀检测**/逐字节解包往返、三格式流水线、
 设置与历史持久化（含损坏文件与旧版本字段）、库扫描、payload ELF 解析（含真实 PS5 payload）、
 PS5 协议与端口扫描（本地 socket 服务器模拟真实线路行为）、
 payload 目录与下载（含取消 / 失败不留残留文件 / 拒绝非 https）、Backport 安全降级、

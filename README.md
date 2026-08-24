@@ -76,11 +76,20 @@ pip install -e .
 ### Single-file exe
 
 ```bash
-pip install pyinstaller
-python -m PyInstaller PS5-Image-Forge.spec
+pip install pyinstaller pillow
+python installer/make_assets.py --version 0.7.5
+python -m PyInstaller --noconfirm PS5-Image-Forge.spec
 ```
 
-Produces a single-file `PS5-Image-Forge.exe`: double-click for the GUI; pass arguments for the CLI; `--selftest` self-checks. For the installer, see [installer/](installer/README.md).
+Produces a single-file `PS5-Image-Forge.exe`: double-click for the GUI; pass arguments for the CLI; `--selftest` self-checks. The asset step first generates the app icon the spec embeds; skip it and you get an icon-less exe.
+
+### Windows installer
+
+```powershell
+powershell -ExecutionPolicy Bypass -File installer\build_setup.ps1
+```
+
+A single `PS5-Image-Forge-Setup-<version>.exe` — a silent NSIS self-extractor wrapped around a branded setup app in the same style as the main window. It installs per-user (no UAC), lets you pick the folder, detects an existing copy and switches to update mode, and asks you to close the app rather than killing it. See [installer/](installer/README.md).
 
 ## CLI
 

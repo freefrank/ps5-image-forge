@@ -36,6 +36,21 @@ all.
 `RequestExecutionLevel user`: nothing is written outside the user's profile, so
 setup never raises a UAC prompt.
 
+The folder is shown on the ready page and can be changed. An update targets
+wherever the previous copy actually lives rather than the default, or the old
+one would be orphaned in place.
+
+## Update detection
+
+An existing copy switches setup into update mode: the tag, title and button all
+read UPDATE, and the installed version is shown next to the one about to
+replace it.
+
+Files decide, not the registry. An install whose keys were lost still has its
+files sitting there, and overwriting them while the UI claims a fresh install is
+how you end up with two half-versions. The registry only supplies the version
+string — when it is missing the page shows `unknown`.
+
 ## Running-app handling
 
 If `PS5-Image-Forge.exe` is running, setup **stops and asks the user to close
@@ -59,6 +74,29 @@ Exit codes: `0` ok, `1` failed, `2` the app is still running, `3` cancelled.
 The binary is GUI-subsystem, so unattended runs also write
 `%TEMP%\ps5if-setup.log` — that is the only trace a failing CI run leaves.
 
+## Gotchas
+
+Two of these cost a full debug cycle each.
+
+**The window reference on `js_api` must be private.** pywebview walks the
+`js_api` object to build the JS-side function table and recurses into it, so a
+public `self.window` sends the whole WinForms control tree down the wire: every
+call crawls and the real methods are shadowed. It presents as the page loading
+but the version never appearing and every button doing nothing. `bridge.py` in
+the main app documents the same trap.
+
+**Dragging has to be throttled.** pywebview turns each `mousemove` into a
+synchronous IPC call, and a mouse reports 125-1000 times a second; untouched,
+the drag saturates the UI thread. `app.js` gates moves to one per 8 ms and
+pauses animation while `html.dragging` is set.
+
+**`build_setup.ps1` must keep its BOM.** Windows PowerShell 5.1 reads a BOM-less
+file as the host's ANSI codepage. On a CP1252 runner an em dash decodes to a
+curly quote, which PowerShell honours as a string delimiter — a string closes
+early and the parse dies far away with "the string is missing the terminator".
+A dev box on a CJK codepage decodes the same bytes harmlessly, so this only
+ever fails in CI.
+
 ## Files
 
 | File | Purpose |
@@ -67,9 +105,9 @@ The binary is GUI-subsystem, so unattended runs also write
 | `app/engine.py` | Install / uninstall / running-app detection. Callable headless. |
 | `app/main.py` | Entry point: argument parsing, unattended path, pywebview window, js_api. |
 | `app/webui/` | The UI — palette, wordmark, grid and scanlines lifted from `src/ps5_image_forge/webui/app.css`. |
-| `build_setup.ps1` | One-shot build (below). |
+| `build_setup.ps1` | One-shot build (below). UTF-8 **with BOM**, and no non-ASCII inside quoted strings — see the note in its header. |
 | `make_assets.py` | Generates the branding art in `assets/`. Needs Pillow. |
-| `installer.nsi` | The previous MUI2 wizard. Kept for reference; nothing builds it. |
+| `installer.nsi`, `build_installer.ps1` | The previous MUI2 wizard. Kept for reference; nothing builds them. |
 
 `assets/`, `build/` and `dist/` are git-ignored.
 

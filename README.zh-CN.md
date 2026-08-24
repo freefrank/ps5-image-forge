@@ -76,11 +76,20 @@ pip install -e .
 ### 单文件 exe
 
 ```bash
-pip install pyinstaller
-python -m PyInstaller PS5-Image-Forge.spec
+pip install pyinstaller pillow
+python installer/make_assets.py --version 0.7.5
+python -m PyInstaller --noconfirm PS5-Image-Forge.spec
 ```
 
-产出单文件 `PS5-Image-Forge.exe`：双击进 GUI；带参数即 CLI；`--selftest` 自检。安装包构建见 [installer/](installer/README.md)。
+产出单文件 `PS5-Image-Forge.exe`：双击进 GUI；带参数即 CLI；`--selftest` 自检。素材那一步会先生成 spec 要内嵌的应用图标，跳过它打出来的 exe 就没有图标。
+
+### Windows 安装包
+
+```powershell
+powershell -ExecutionPolicy Bypass -File installer\build_setup.ps1
+```
+
+产出单个 `PS5-Image-Forge-Setup-<版本>.exe` —— 静默 NSIS 自解压壳套一个与主界面同款风格的安装程序。它按用户安装（不弹 UAC）、可选择安装目录、检测到已有版本时切换为更新模式，并且在主程序运行时提示关闭而不是强杀。详见 [installer/](installer/README.md)。
 
 ## CLI
 
