@@ -6,7 +6,7 @@
 
 [![release](https://github.com/freefrank/ps5-image-forge/actions/workflows/release.yml/badge.svg)](https://github.com/freefrank/ps5-image-forge/actions/workflows/release.yml)
 [![License: GPL-3.0](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
-![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux-8A2BE2)
+![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-8A2BE2)
 ![Python](https://img.shields.io/badge/python-3.11%2B-3776AB)
 
 [English](README.md) · 简体中文

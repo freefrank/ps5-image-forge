@@ -110,6 +110,20 @@ PS5-Image-Forge-Setup-<ver>.exe      setup.nsi，SilentInstall silent
 - **绝不强杀主程序**：检测到运行中就提示用户关闭并提供「重新检测」。
 - `uninstall.exe` 是外层 setup 的逐字节副本，靠 `--self=$EXEPATH` 复用同一个壳。
 
+### 发版前的版本号清单
+
+版本号散在三处源文件里，**漏一处就会发出自相矛盾的版本**（0.7.5 就漏过两处：
+应用里显示 0.7.4，包版本却是 0.7.5）：
+
+| 位置 | 用途 |
+|---|---|
+| `pyproject.toml` 的 `version` | 包版本，CI 与构建脚本都读它 |
+| `src/ps5_image_forge/__init__.py` 的 `__version__` | 经 `bridge.py` 显示在 UI 上 |
+| `src/ps5_image_forge/webui/app.js` 的 `APP_VERSION` | demo 模式（无后端）时的显示值 |
+
+另外 `docs/DEVELOPMENT.md` 的状态头、`docs/screenshots/` 里印着版本号的截图，
+以及 CHANGELOG 也要一起更新。
+
 ### 发布（`.github/workflows/release.yml`）
 
 推送 `v*` tag 触发，产出 Windows 便携版 + 安装版、Linux AppImage、macOS DMG，
