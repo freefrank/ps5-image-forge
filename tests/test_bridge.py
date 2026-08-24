@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import random
+import sys
 import threading
 import time
 from types import SimpleNamespace
@@ -125,6 +126,9 @@ def test_window_maximize_is_not_fullscreen() -> None:
     assert b.begin_resize("invalid-edge") is False
 
 
+@pytest.mark.skipif(sys.platform != "win32",
+                    reason="frameless resize is Win32-only: the code under test "
+                           "imports ctypes.wintypes, which does not exist off Windows")
 def test_frameless_resize_posts_native_hit_test(monkeypatch: pytest.MonkeyPatch) -> None:
     import ctypes
 
