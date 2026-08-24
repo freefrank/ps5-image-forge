@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     Build the scene-style branded Windows setup for PS5 Image Forge.
 
@@ -13,6 +13,14 @@
 
     The finished setup lands in dist\PS5-Image-Forge-Setup-<version>.exe and is
     the same binary that becomes uninstall.exe in the install folder.
+
+.NOTES
+    Keep this file UTF-8 *with BOM*, and keep non-ASCII out of quoted strings.
+    Windows PowerShell 5.1 reads a BOM-less file as the machine's ANSI
+    codepage; on a CP1252 host an em dash decodes to a curly quote, which
+    PowerShell honours as a string delimiter, so a string closes early and the
+    parse dies far away with "the string is missing the terminator". A dev box
+    on a CJK codepage decodes the same bytes harmlessly and never sees it.
 
     Everything under build\ and dist\ is git-ignored.
 
@@ -100,7 +108,7 @@ Set-Content -Path (Join-Path $PayloadDir 'VERSION') -Value $Version -NoNewline -
 # and still exits 0 — catch it now rather than from a user's bug report.
 $payloadBytes = (Get-ChildItem $PayloadDir -File | Measure-Object Length -Sum).Sum
 if ($payloadBytes -lt 20MB) {
-    throw "payload suspiciously small ($payloadBytes bytes) — refusing to build a placeholder setup"
+    throw "payload suspiciously small ($payloadBytes bytes) - refusing to build a placeholder setup"
 }
 "    payload {0:N1} MB" -f ($payloadBytes / 1MB) | Write-Host
 
