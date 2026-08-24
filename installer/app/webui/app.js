@@ -6,6 +6,7 @@ const $ = (id) => document.getElementById(id);
 const api = () => window.pywebview.api;
 
 let MODE = 'install';
+let VERSION = '';
 let busy = false;
 
 /* ── boot ─────────────────────────────────────────────────── */
@@ -13,12 +14,30 @@ window.addEventListener('pywebviewready', async () => {
   const s = await api().state();
   MODE = s.mode;
 
+  VERSION = s.version;
   $('brand-ver').textContent = 'v' + s.version;
-  $('f-version').textContent = s.installed && s.installed !== s.version
-    ? `${s.installed}  →  ${s.version}`
-    : s.version;
+  $('f-version').textContent = s.version;
   setDir(s.dir);
   $('f-size').textContent = (s.size / 1048576).toFixed(1) + ' MB';
+
+  if (MODE === 'update') {
+    // Both versions, side by side: the one on disk and the one about to
+    // replace it. "unknown" when the files are there but the registry entry
+    // that records the version is not.
+    $('f-installed-label').hidden = false;
+    $('f-installed').hidden = false;
+    $('f-installed').textContent = s.installed || 'unknown';
+    $('f-installed').classList.toggle('dim', !s.installed);
+    $('f-version-label').textContent = 'UPDATE TO';
+    $('ready-tag').textContent = 'UPDATE';
+    $('ready-title').textContent = 'UPDATE';
+    $('blurb').textContent =
+      'An existing copy is already installed. Its files are replaced in place; '
+      + 'your settings, history and payload notes under %APPDATA% are kept.';
+    $('btn-go').textContent = 'UPDATE';
+    $('done-tag').textContent = 'UPDATED';
+    $('done-title').textContent = 'UPDATED';
+  }
 
   if (MODE === 'uninstall') {
     $('mode-tag').textContent = 'UNINSTALL';
@@ -150,11 +169,16 @@ async function pump() {
 function finish(ok, error) {
   if (!ok) {
     $('done-tag').textContent = 'FAILED';
-    $('done-title').textContent = MODE === 'uninstall' ? 'UNINSTALL FAILED' : 'INSTALL FAILED';
+    $('done-title').textContent =
+      { uninstall: 'UNINSTALL FAILED', update: 'UPDATE FAILED' }[MODE]
+      || 'INSTALL FAILED';
     $('done-text').textContent = error || 'Unknown error.';
     $('btn-launch').hidden = true;
   } else if (MODE === 'uninstall') {
     $('done-text').textContent = 'PS5 Image Forge has been removed.';
+  } else if (MODE === 'update') {
+    $('done-text').textContent =
+      'PS5 Image Forge has been updated to ' + VERSION + '.';
   } else {
     $('done-text').textContent =
       'PS5 Image Forge is installed and pinned to the Start Menu.';

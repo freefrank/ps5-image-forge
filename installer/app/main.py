@@ -110,11 +110,16 @@ class Api:
 
     # -- state ------------------------------------------------------------
     def state(self) -> dict:
+        existing = engine.existing_install()
         return {
-            "mode": "uninstall" if self._removing else "install",
+            "mode": ("uninstall" if self._removing
+                     else "update" if existing else "install"),
             "product": engine.PRODUCT,
             "version": engine.version(),
+            # None when a previous copy is there but its registry entry is not,
+            # which the page renders as "unknown" rather than as a fresh install.
             "installed": engine.installed_version(),
+            "existing": str(existing) if existing else None,
             "dir": str(self._dest()),
             "size": sum(p.stat().st_size for p in engine.payload_files()),
             "on_disk": engine.installed_size(),
@@ -122,7 +127,9 @@ class Api:
         }
 
     def _dest(self) -> Path:
-        return self._target or engine.install_dir()
+        # An update goes back where the previous copy already lives, not to the
+        # default, or the old one is orphaned in place.
+        return self._target or engine.existing_install() or engine.install_dir()
 
     def browse(self) -> str:
         """Folder picker for the install location; returns the chosen path."""

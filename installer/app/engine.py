@@ -109,7 +109,7 @@ def desktop_link() -> Path:
 
 
 def installed_size() -> int:
-    dest = install_dir()
+    dest = registered_dir() or install_dir()
     if not dest.is_dir():
         return 0
     return sum(p.stat().st_size for p in dest.rglob("*") if p.is_file())
@@ -130,6 +130,19 @@ def installed_version() -> str | None:
             return str(winreg.QueryValueEx(key, "Version")[0])
     except OSError:
         return None
+
+
+def existing_install() -> Path | None:
+    """Where a previous copy lives, registry entry or not.
+
+    The registry alone is not enough: an install whose keys were lost still has
+    its files sitting there, and overwriting them silently while the UI claims
+    this is a fresh install is how you end up with two half-versions.
+    """
+    for candidate in (registered_dir(), install_dir()):
+        if candidate and (candidate / APP_EXE).is_file():
+            return candidate
+    return None
 
 
 # ------------------------------------------------------------ running checks

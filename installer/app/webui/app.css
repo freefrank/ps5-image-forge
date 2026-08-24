@@ -122,6 +122,7 @@ body::before {   /* CRT lines */
   text-align: right; align-self: center; }
 .facts dd { color: var(--text); overflow-wrap: anywhere; }
 .facts dd.path { color: var(--amber); }
+.facts dd.dim { color: var(--text-dim); }   /* version present but unknown */
 
 /* While the window is being dragged nothing may animate: every frame spent
    painting here is a frame the move loop does not get. */
