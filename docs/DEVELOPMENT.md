@@ -110,19 +110,24 @@ PS5-Image-Forge-Setup-<ver>.exe      setup.nsi，SilentInstall silent
 - **绝不强杀主程序**：检测到运行中就提示用户关闭并提供「重新检测」。
 - `uninstall.exe` 是外层 setup 的逐字节副本，靠 `--self=$EXEPATH` 复用同一个壳。
 
-### 发版前的版本号清单
+### 版本号：tag 是唯一真源
 
-版本号散在三处源文件里，**漏一处就会发出自相矛盾的版本**（0.7.5 就漏过两处：
-应用里显示 0.7.4，包版本却是 0.7.5）：
+版本号硬编码在三处，靠人工同步必然漏（0.7.5 就漏了两处，发出去的 app 在自己的
+页脚里自称 0.7.4）。现在由 CI 在**任何构建之前**用 tag 打戳，三处一起改写：
 
-| 位置 | 用途 |
+| 位置 | 谁在用 |
 |---|---|
-| `pyproject.toml` 的 `version` | 包版本，CI 与构建脚本都读它 |
-| `src/ps5_image_forge/__init__.py` 的 `__version__` | 经 `bridge.py` 显示在 UI 上 |
-| `src/ps5_image_forge/webui/app.js` 的 `APP_VERSION` | demo 模式（无后端）时的显示值 |
+| `pyproject.toml` 的 `version` | 包版本；`build_setup.ps1` 也从这里取，写进安装器的 VERSION 戳 |
+| `src/ps5_image_forge/__init__.py` 的 `__version__` | 经 `bridge.py` 显示在**界面右下角**与「关于」页 |
+| `src/ps5_image_forge/webui/app.js` 的 `APP_VERSION` | 仅 demo 模式（无后端时前端拿不到 Python 的值） |
 
-另外 `docs/DEVELOPMENT.md` 的状态头、`docs/screenshots/` 里印着版本号的截图，
-以及 CHANGELOG 也要一起更新。
+```bash
+python tools/set_version.py 0.7.6      # 三处一起改写（接受 v0.7.6）
+python tools/set_version.py --check    # 三处是否一致，不一致退出码 1
+```
+
+因此**发版只需要打 tag**，不必先改源码里的版本号 —— 仓库里的值只是上次发布的留痕。
+本地改版本或想确认没漂移时用上面的命令。
 
 ### 发布（`.github/workflows/release.yml`）
 
