@@ -2,7 +2,7 @@ name: release
 
 # Build and publish release assets when a v* tag is pushed:
 #   - Windows portable  (PyInstaller single-file exe)
-#   - Windows installer (NSIS setup, cyberpunk-styled)
+#   - Windows installer (silent NSIS wrapper around the branded setup app)
 #   - Linux AppImage    (PyInstaller + linuxdeploy)
 #   - macOS DMG         (PyInstaller .app + create-dmg, cyberpunk background)
 
@@ -67,14 +67,65 @@ jobs:
 
       - name: Windows installer
         shell: pwsh
-        # NSIS is preinstalled on windows-latest; build_installer.ps1 finds
+        # NSIS is preinstalled on windows-latest; build_setup.ps1 finds
         # makensis on PATH or in Program Files. Install only if it's missing.
         run: |
           if (-not (Get-Command makensis -ErrorAction SilentlyContinue) -and
               -not (Test-Path "${env:ProgramFiles(x86)}\NSIS\makensis.exe")) {
             choco install nsis -y --no-progress
           }
-          powershell -ExecutionPolicy Bypass -File installer\build_installer.ps1
+          powershell -ExecutionPolicy Bypass -File installer\build_setup.ps1
+
+      - name: Installer smoke test
+        shell: pwsh
+        # The setup is a silent NSIS wrapper around a GUI-subsystem installer
+        # app, so nothing it prints reaches this log — hence the log file.
+        run: |
+          $setup = "dist\PS5-Image-Forge-Setup-${{ steps.ver.outputs.version }}.exe"
+          $p = Start-Process $setup -ArgumentList '--auto' -Wait -PassThru
+          Get-Content "$env:TEMP\ps5if-setup.log" -ErrorAction SilentlyContinue
+          if ($p.ExitCode -ne 0) { throw "auto-install exited $($p.ExitCode)" }
+
+          $dir = "$env:LOCALAPPDATA\Programs\PS5 Image Forge"
+          foreach ($f in @('PS5-Image-Forge.exe', 'uninstall.exe', 'LICENSE')) {
+            if (-not (Test-Path "$dir\$f")) { throw "missing $f after install" }
+          }
+          $sm = "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\PS5 Image Forge"
+          if (-not (Test-Path "$sm\PS5 Image Forge.lnk")) { throw "Start Menu shortcut missing" }
+          if (-not (Test-Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\PS5 Image Forge')) {
+            throw "HKCU uninstall entry missing"
+          }
+          # uninstall.exe is the outer setup image, which only reaches the app
+          # through --self=$EXEPATH. If that plumbing breaks it silently becomes
+          # a copy of the unpacked launcher and will not run at all.
+          $a = (Get-FileHash $setup -Algorithm SHA256).Hash
+          $b = (Get-FileHash "$dir\uninstall.exe" -Algorithm SHA256).Hash
+          if ($a -ne $b) { throw "uninstall.exe is not a copy of the setup exe ($b vs $a)" }
+
+      - name: Uninstall smoke test
+        shell: pwsh
+        # Deleting the still-running uninstall.exe and its folder is handed to a
+        # detached command (NSIS holds its own image open), so assert the end
+        # state rather than only the exit code.
+        run: |
+          $dir = "$env:LOCALAPPDATA\Programs\PS5 Image Forge"
+          $p = Start-Process "$dir\uninstall.exe" -ArgumentList '--auto' -Wait -PassThru
+          Get-Content "$env:TEMP\ps5if-setup.log" -ErrorAction SilentlyContinue
+          if ($p.ExitCode -ne 0) { throw "auto-uninstall exited $($p.ExitCode)" }
+
+          $deadline = (Get-Date).AddMinutes(2)
+          while ((Test-Path $dir) -and (Get-Date) -lt $deadline) { Start-Sleep 2 }
+          if (Test-Path $dir) {
+            Get-ChildItem -Recurse $dir | Select-Object -First 20 FullName | Out-String | Write-Host
+            throw "install folder still present after uninstall"
+          }
+          # Test-Path over `reg query` on purpose: reg exits 1 when the key is
+          # missing, which is the result this step is hoping for — and the pwsh
+          # wrapper ends the step with $LASTEXITCODE.
+          if (Test-Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\PS5 Image Forge') {
+            throw "uninstall registry entry survived"
+          }
+          Write-Host "uninstalled cleanly"
 
       - uses: actions/upload-artifact@v6
         with:

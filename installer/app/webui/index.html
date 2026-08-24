@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>PS5 Image Forge Setup</title>
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+<div id="sweep"></div>
+
+<div id="titlebar">
+  <div class="drag pywebview-drag-region">
+    <h1>PS5 IMAGE<span class="accent">&#9646;</span>FORGE</h1>
+    <span class="sub" id="mode-tag">SETUP</span>
+  </div>
+  <div class="win-btns">
+    <span id="win-min" title="Minimize">&#9472;</span>
+    <span id="win-close" title="Close">&#10005;</span>
+  </div>
+</div>
+
+<main id="body">
+
+  <!-- ── ready ─────────────────────────────────────────── -->
+  <section class="stage on" id="stage-ready">
+    <div class="panel">
+      <span class="tag" id="ready-tag">INSTALL</span>
+      <h2 id="ready-title">READY</h2>
+      <p class="blurb" id="blurb">
+        A toolkit for building, converting and managing PS5 game-dump images —
+        backport, payload library and console tools.
+      </p>
+      <dl class="facts">
+        <dt>VERSION</dt><dd id="f-version">—</dd>
+        <dt>TARGET</dt><dd id="f-dir" class="path">—</dd>
+        <dt id="f-size-label">SIZE</dt><dd id="f-size">—</dd>
+      </dl>
+      <div class="opts" id="opt-row">
+        <span class="chip on" id="chip-desktop"><span class="box"></span>Desktop shortcut</span>
+      </div>
+    </div>
+
+    <div class="panel warn" id="running-warn" hidden>
+      <span class="tag alert">BLOCKED</span>
+      <h2>PS5 IMAGE FORGE IS RUNNING</h2>
+      <p class="blurb">
+        Close the app before continuing. Setup will not force it shut — an
+        image build or transfer in progress would be lost.
+      </p>
+      <div class="row"><button id="btn-recheck">CHECK AGAIN</button><span id="recheck-note"></span></div>
+    </div>
+
+    <div class="row actions">
+      <button class="primary" id="btn-go">INSTALL</button>
+      <button id="btn-cancel">CANCEL</button>
+    </div>
+  </section>
+
+  <!-- ── working ───────────────────────────────────────── -->
+  <section class="stage" id="stage-work">
+    <div class="panel">
+      <span class="tag">PROGRESS</span>
+      <div class="prog-top">
+        <span id="pct">0%</span><span id="phase">STANDBY</span>
+      </div>
+      <div class="bar idle"><div class="fill"></div></div>
+    </div>
+    <div class="panel">
+      <span class="tag">LOG</span>
+      <div class="logbox" id="log"></div>
+    </div>
+  </section>
+
+  <!-- ── done ──────────────────────────────────────────── -->
+  <section class="stage" id="stage-done">
+    <div class="panel">
+      <span class="tag" id="done-tag">COMPLETE</span>
+      <h2 id="done-title">INSTALLED</h2>
+      <p class="blurb" id="done-text">—</p>
+      <div class="row actions">
+        <button class="primary" id="btn-launch">LAUNCH</button>
+        <button id="btn-finish">CLOSE</button>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer id="brand">
+  <span id="brand-ver">v—</span>
+  <span class="dim">github.com/freefrank/ps5-image-forge</span>
+</footer>
+
+<script src="app.js"></script>
+</body>
+</html>
